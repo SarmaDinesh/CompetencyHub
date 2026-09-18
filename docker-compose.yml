@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: competencyhub-db
+    environment:
+      POSTGRES_DB: competencyhub
+      POSTGRES_USER: chub
+      POSTGRES_PASSWORD: chub
+
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
