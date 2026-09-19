@@ -1,11 +1,10 @@
 package com.example.CompetencyHub.domain.model;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 @Entity
 @Table(name = "course")
@@ -27,6 +26,10 @@ public class Course {
     @Column(nullable = false)
     private int capacity;
 
+    @OneToMany(mappedBy = "course", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("orderIndex ASC")
+    private List<Competency> competencies = new ArrayList<>();
+
     public Course() {
     }
 
@@ -35,6 +38,20 @@ public class Course {
         this.title = title;
         this.description = description;
         this.capacity = capacity;
+    }
+
+    public List<Competency> getCompetencies() {
+        return Collections.unmodifiableList(competencies);
+    }
+
+    public void addCompetency(Competency competency) {
+        competencies.add(competency);
+        competency.setCourse(this);
+    }
+
+    public void removeCompetency(Competency competency) {
+        competencies.remove(competency);
+        competency.setCourse(null);
     }
 
     public Long getId() {
