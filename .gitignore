@@ -1,4 +1,4 @@
-HELP.md
+### Maven ###
 target/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
@@ -31,3 +31,23 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Logs ###
+*.log
+logs/
+
+### Environment & secrets ###
+.env
+.env.local
+application-local.properties
+application-secret.properties
+
+### OS ###
+.DS_Store
+Thumbs.db
+desktop.ini
+
+### Misc ###
+HELP.md
+*.bak
+*.tmp
