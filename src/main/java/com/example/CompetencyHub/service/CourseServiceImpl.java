@@ -1,8 +1,10 @@
 package com.example.CompetencyHub.service;
 
+import com.example.CompetencyHub.config.AppProperties;
 import com.example.CompetencyHub.domain.model.Course;
 import com.example.CompetencyHub.repository.CourseRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -11,9 +13,11 @@ import java.util.NoSuchElementException;
 public class CourseServiceImpl implements CourseService{
 
     private final CourseRepository courseRepository;
+    private final AppProperties properties;
 
-    public CourseServiceImpl(CourseRepository courseRepository) {
+    public CourseServiceImpl(CourseRepository courseRepository, AppProperties properties) {
         this.courseRepository = courseRepository;
+        this.properties = properties;
     }
 
     @Override
@@ -28,9 +32,10 @@ public class CourseServiceImpl implements CourseService{
     }
 
     @Override
+    @Transactional
     public Course create(Course course) {
         if (course.getCapacity() <= 0) {
-            throw new IllegalArgumentException("Capacity must be positive");
+            course.setCapacity(properties.getDefaultCourseCapacity());
         }
         return courseRepository.save(course);
     }
