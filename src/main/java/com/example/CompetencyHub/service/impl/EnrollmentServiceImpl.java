@@ -7,13 +7,17 @@ import com.example.CompetencyHub.domain.enums.AttemptOutcome;
 import com.example.CompetencyHub.domain.model.Course;
 import com.example.CompetencyHub.domain.model.Enrollment;
 import com.example.CompetencyHub.domain.model.Student;
+import com.example.CompetencyHub.messaging.event.EnrollmentCreatedEvent;
 import com.example.CompetencyHub.repository.CourseRepository;
 import com.example.CompetencyHub.repository.EnrollmentRepository;
 import com.example.CompetencyHub.repository.StudentRepository;
 import com.example.CompetencyHub.service.EnrollmentAuditService;
 import com.example.CompetencyHub.service.EnrollmentService;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
 
 @Service
 public class EnrollmentServiceImpl implements EnrollmentService {
@@ -22,15 +26,18 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     private final CourseRepository courseRepository;
     private final EnrollmentRepository enrollmentRepository;
     private final EnrollmentAuditService auditService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public EnrollmentServiceImpl(StudentRepository studentRepository,
                                  CourseRepository courseRepository,
                                  EnrollmentRepository enrollmentRepository,
-                                 EnrollmentAuditService auditService) {
+                                 EnrollmentAuditService auditService,
+                                 ApplicationEventPublisher eventPublisher) {
         this.studentRepository = studentRepository;
         this.courseRepository = courseRepository;
         this.enrollmentRepository = enrollmentRepository;
         this.auditService = auditService;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -70,6 +77,18 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             // detects the changed field and issues the UPDATE at commit. That UPDATE
             // carries the optimistic-lock check (AND version = ?).
             Enrollment enrollment = enrollmentRepository.save(new Enrollment(student, course));
+
+            // In-process event. Spring holds it until the transaction commits, then hands it
+            // to the @TransactionalEventListener above. Nothing reaches Kafka until then.
+            eventPublisher.publishEvent(new EnrollmentCreatedEvent(
+                    enrollment.getId(),
+                    student.getId(),
+                    student.getEmail(),
+                    course.getId(),
+                    course.getCode(),
+                    course.getTitle(),
+                    Instant.now()
+            ));
 
             // Commits in its own transaction. Harmless on the happy path.
             auditService.record(studentId, courseId, AttemptOutcome.SUCCESS, null);
