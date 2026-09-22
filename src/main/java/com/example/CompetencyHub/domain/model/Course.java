@@ -107,6 +107,20 @@ public class Course {
         }
     }
 
+    /**
+     * Updates the editable fields, keeping seat arithmetic consistent.
+     *
+     * <p>Changing capacity must move seatsAvailable by the same amount, or the two
+     * disagree. Doing it in one method makes that impossible to forget.
+     */
+    public void updateDetails(String title, String description, int newCapacity) {
+        int delta = newCapacity - this.capacity;
+        this.title = title;
+        this.description = description;
+        this.capacity = newCapacity;
+        this.seatsAvailable = Math.max(0, this.seatsAvailable + delta);
+    }
+
     public int getSeatsAvailable() {
         return seatsAvailable;
     }
