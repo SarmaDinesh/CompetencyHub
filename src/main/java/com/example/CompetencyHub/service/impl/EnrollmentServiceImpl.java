@@ -13,6 +13,8 @@ import com.example.CompetencyHub.repository.EnrollmentRepository;
 import com.example.CompetencyHub.repository.StudentRepository;
 import com.example.CompetencyHub.service.EnrollmentAuditService;
 import com.example.CompetencyHub.service.EnrollmentService;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,16 +30,29 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     private final EnrollmentAuditService auditService;
     private final ApplicationEventPublisher eventPublisher;
 
+    private final Counter enrollmentSuccess;
+    private final Counter enrollmentRejectedFull;
+
     public EnrollmentServiceImpl(StudentRepository studentRepository,
                                  CourseRepository courseRepository,
                                  EnrollmentRepository enrollmentRepository,
                                  EnrollmentAuditService auditService,
-                                 ApplicationEventPublisher eventPublisher) {
+                                 ApplicationEventPublisher eventPublisher,
+                                 MeterRegistry meterRegistry) {
         this.studentRepository = studentRepository;
         this.courseRepository = courseRepository;
         this.enrollmentRepository = enrollmentRepository;
         this.auditService = auditService;
         this.eventPublisher = eventPublisher;
+
+        // Counters are created once in the constructor, not per call. Registering inside a
+        // method does a map lookup on every invocation for no benefit.
+        this.enrollmentSuccess = Counter.builder("enrollment.attempts")
+                .tag("outcome", "success")
+                .register(meterRegistry);
+        this.enrollmentRejectedFull = Counter.builder("enrollment.attempts")
+                .tag("outcome", "course_full")
+                .register(meterRegistry);
     }
 
     /**

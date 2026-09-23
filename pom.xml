@@ -94,6 +94,20 @@
 			<artifactId>spring-boot-starter-kafka</artifactId>
 		</dependency>
 
+		<!--Actuator-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+
+		<!-- Micrometer is the metrics facade (what SLF4J is to logging). Your code talks to
+             Micrometer; this registry decides the wire format. Swapping to Datadog or CloudWatch
+             later is a dependency change, not a code change. -->
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-registry-prometheus</artifactId>
+		</dependency>
+
 	</dependencies>
 
 	<build>
@@ -101,6 +115,16 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+				<executions>
+					<execution>
+						<goals>
+							<!-- Writes build.properties into the jar: version, build time, artifact.
+                                 Answers "which build is running in prod", which is the first question
+                                 asked in every incident and is surprisingly hard without this. -->
+							<goal>build-info</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>
