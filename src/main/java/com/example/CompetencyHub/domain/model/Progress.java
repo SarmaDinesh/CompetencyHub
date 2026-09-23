@@ -6,7 +6,9 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.LocalDateTime;
 
 /**
  * How far one student has got in one course.
@@ -35,66 +37,49 @@ public class Progress {
     @Column(name = "competencies_mastered", nullable = false)
     private int competenciesMastered;
 
-    /**
-     * BigDecimal, never double.
-     *
-     * Binary floating point cannot represent most decimal fractions exactly —
-     * 0.1 + 0.2 evaluates to 0.30000000000000004. Harmless in a simulation, wrong for
-     * a number a person reads or a system compares for equality. Percentages, money,
-     * and scores all use BigDecimal. precision=5, scale=2 allows 0.00 through 999.99.
-     */
-    @Column(name = "percent_complete", nullable = false, precision = 5, scale = 2)
+    // BigDecimal, because the column is numeric(5,2). Rounding to an int here would throw away
+    // the two decimal places the schema deliberately reserves -- 66.67% would become 67%, and
+    // the difference is visible to a student looking at their own progress bar.
+    @Column(name = "percent_complete", nullable = false)
     private BigDecimal percentComplete;
 
-    /**
-     * When this rollup was last recomputed — so a stale row is visibly stale rather
-     * than silently wrong.
-     *
-     * Instant, not LocalDateTime: this is a point on the global timeline, and Instant
-     * carries no timezone ambiguity. Use LocalDateTime only for wall-clock values
-     * that genuinely have no timezone, such as a recurring 09:00 class start.
-     */
     @Column(name = "recalculated_at", nullable = false)
-    private Instant recalculatedAt;
+    private LocalDateTime recalculatedAt;
 
-    /** Required by JPA. */
-    protected Progress() {
-    }
+    protected Progress() { }
 
-    /** Starts a student at zero progress in a course. */
     public Progress(Long studentId, Long courseId) {
         this.id = new ProgressId(studentId, courseId);
         this.competenciesMastered = 0;
         this.percentComplete = BigDecimal.ZERO;
-        this.recalculatedAt = Instant.now();
+        this.recalculatedAt = LocalDateTime.now();
     }
 
     /**
-     * Replaces the rollup with freshly computed values.
-     *
-     * <p>One method rather than three setters, because these fields only ever change
-     * together — a percentage that disagrees with the mastered count is a bug, and
-     * this signature makes that state unreachable.
+     * Returns true when something actually changed, so the caller can count real updates
+     * rather than rows visited.
      */
-    public void update(int mastered, BigDecimal percent) {
-        this.competenciesMastered = mastered;
-        this.percentComplete = percent;
-        this.recalculatedAt = Instant.now();
+    public boolean recalculate(long mastered, long totalCompetencies) {
+        BigDecimal newPercent = totalCompetencies == 0
+                // A course with no competencies yet. 0.00 is the honest answer; dividing would
+                // be an ArithmeticException in an unattended job.
+                ? BigDecimal.ZERO
+                : BigDecimal.valueOf(mastered * 100.0)
+                .divide(BigDecimal.valueOf(totalCompetencies), 2, RoundingMode.HALF_UP);
+
+        boolean changed = this.competenciesMastered != (int) mastered
+                || this.percentComplete.compareTo(newPercent) != 0;
+
+        this.competenciesMastered = (int) mastered;
+        this.percentComplete = newPercent;
+        // Stamped on every run, changed or not -- "when did we last verify this" is a different
+        // and more useful question than "when did this last change".
+        this.recalculatedAt = LocalDateTime.now();
+        return changed;
     }
 
-    public ProgressId getId() {
-        return id;
-    }
-
-    public int getCompetenciesMastered() {
-        return competenciesMastered;
-    }
-
-    public BigDecimal getPercentComplete() {
-        return percentComplete;
-    }
-
-    public Instant getRecalculatedAt() {
-        return recalculatedAt;
-    }
+    public ProgressId getId() { return id; }
+    public int getCompetenciesMastered() { return competenciesMastered; }
+    public BigDecimal getPercentComplete() { return percentComplete; }
+    public LocalDateTime getRecalculatedAt() { return recalculatedAt; }
 }

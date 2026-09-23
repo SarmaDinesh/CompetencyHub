@@ -3,6 +3,8 @@ package com.example.CompetencyHub.repository;
 import com.example.CompetencyHub.domain.model.Progress;
 import com.example.CompetencyHub.domain.model.ProgressId;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /**
  * Repository for per-student, per-course progress rollups.
