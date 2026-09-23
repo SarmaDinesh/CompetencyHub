@@ -1,0 +1,11 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: competencyhub
+    metrics_path: /actuator/prometheus
+    static_configs:
+      # host.docker.internal reaches your host from inside the container, which is where
+      # the app runs during development. In a full compose deployment this becomes the
+      # service name instead.
+      - targets: ["host.docker.internal:8080"]
