@@ -20,11 +20,12 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
     @Query(value = """
             SELECT count(DISTINCT a.competency_id)
             FROM submission s
-            JOIN assessment a ON a.id = s.assessment_id
-            JOIN competency c ON c.id = a.competency_id
+            JOIN assessment a  ON a.id = s.assessment_id
+            JOIN competency c  ON c.id = a.competency_id
+            JOIN objective_assessment oa ON oa.id = a.id
             WHERE s.student_id = :studentId
               AND c.course_id = :courseId
-              AND s.score >= a.min_score
+              AND s.score >= oa.passing_score
             """, nativeQuery = true)
     long countMasteredCompetencies(@Param("studentId") Long studentId,
                                    @Param("courseId") Long courseId);

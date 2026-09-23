@@ -28,6 +28,8 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<rest-assured.version>6.0.1</rest-assured.version>
+		<testcontainers.version>2.0.3</testcontainers.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -107,6 +109,54 @@
 			<groupId>io.micrometer</groupId>
 			<artifactId>micrometer-registry-prometheus</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!--Tests-->
+
+		<!-- Boot's @ServiceConnection support: wires the DataSource to the container with no
+             @DynamicPropertySource plumbing. Managed by the Boot BOM, so no version. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-testcontainers</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- Versions pinned deliberately. Testcontainers 2.0 renamed every module with a
+             "testcontainers-" prefix, and whether Boot 4.1.1's BOM manages the 1.x or 2.x line
+             decides which names work. Pinning sidesteps the question; see the note below for
+             how to remove the pins once you know. -->
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>testcontainers-postgresql</artifactId>
+			<version>${testcontainers.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>testcontainers-junit-jupiter</artifactId>
+			<version>${testcontainers.version}</version>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- Boot 3's BOM managed rest-assured; Boot 4's does not. Without this version the POM
+             will not parse and every dependency around it appears unresolved. -->
+		<dependency>
+			<groupId>io.rest-assured</groupId>
+			<artifactId>rest-assured</artifactId>
+			<version>${rest-assured.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<!-- @DataJpaTest, TestEntityManager, @AutoConfigureTestDatabase.
+     NOT included in spring-boot-starter-test any more. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa-test</artifactId>
+			<scope>test</scope>
+		</dependency>
 
 	</dependencies>
 
@@ -123,6 +173,41 @@
                                  asked in every incident and is surprisingly hard without this. -->
 							<goal>build-info</goal>
 						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<!-- mvn test: no Spring context, no Docker, sub-second. Run constantly. -->
+					<includes><include>**/*Test.java</include></includes>
+				</configuration>
+			</plugin>
+
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-failsafe-plugin</artifactId>
+				<configuration>
+					<!-- mvn verify adds these: Spring context, containers, seconds to minutes. -->
+					<includes><include>**/*IT.java</include></includes>
+				</configuration>
+				<executions>
+					<execution>
+						<goals><goal>integration-test</goal><goal>verify</goal></goals>
+					</execution>
+				</executions>
+			</plugin>
+
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>0.8.13</version>
+				<executions>
+					<execution><goals><goal>prepare-agent</goal></goals></execution>
+					<execution>
+						<id>report</id><phase>verify</phase>
+						<goals><goal>report</goal></goals>
 					</execution>
 				</executions>
 			</plugin>
