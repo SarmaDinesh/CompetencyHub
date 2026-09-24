@@ -2,7 +2,7 @@
   "info": {
     "name": "CompetencyHub",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Run the folders in order (Collection Runner works). Each create request saves the new id into a collection variable, so later requests use it automatically.\n\nFor the 409 delete checks, insert a submission first:\n\ndocker exec competencyhub-db psql -U chub -d competencyhub -c \"INSERT INTO submission (student_id, assessment_id, score, submitted_at) VALUES ((SELECT min(id) FROM student), <objectiveId>, 90, now())\""
+    "description": "Run the folders in order (Collection Runner works). Each create request saves the new id into a collection variable, so later requests use it automatically.\n\nFolder 3 creates real submissions, so folder 4's 409 checks work without any SQL. (Before submissions had an endpoint, this was the manual way:)\n\ndocker exec competencyhub-db psql -U chub -d competencyhub -c \"INSERT INTO submission (student_id, assessment_id, score, submitted_at) VALUES ((SELECT min(id) FROM student), <objectiveId>, 90, now())\""
   },
   "variable": [
     {
@@ -31,6 +31,18 @@
     },
     {
       "key": "performanceId",
+      "value": ""
+    },
+    {
+      "key": "mentorId",
+      "value": ""
+    },
+    {
+      "key": "studentId",
+      "value": "1"
+    },
+    {
+      "key": "essaySubmissionId",
       "value": ""
     }
   ],
@@ -349,7 +361,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"type\": \"PERFORMANCE\",\n  \"title\": \"Essay\",\n  \"minScore\": 0,\n  \"maxScore\": 100,\n  \"rubricUrl\": \"https://example.com/rubric\",\n  \"wordLimit\": 1500\n}",
+              "raw": "{\n  \"type\": \"PERFORMANCE\",\n  \"title\": \"Essay\",\n  \"minScore\": 0,\n  \"maxScore\": 100,\n  \"rubricUrl\": \"https://example.com/rubric\",\n  \"wordLimit\": 1500,\n  \"passingScore\": 60\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -593,7 +605,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"type\": \"PERFORMANCE\",\n  \"title\": \"x\",\n  \"minScore\": 100,\n  \"maxScore\": 0\n}",
+              "raw": "{\n  \"type\": \"PERFORMANCE\",\n  \"title\": \"x\",\n  \"minScore\": 100,\n  \"maxScore\": 0,\n  \"passingScore\": 50\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -802,7 +814,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"type\": \"PERFORMANCE\",\n  \"title\": \"x\",\n  \"minScore\": 0,\n  \"maxScore\": 10\n}",
+              "raw": "{\n  \"type\": \"PERFORMANCE\",\n  \"title\": \"x\",\n  \"minScore\": 0,\n  \"maxScore\": 10,\n  \"passingScore\": 6\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -825,10 +837,610 @@
       ]
     },
     {
-      "name": "3. Delete guards",
+      "name": "3. Submissions and grading",
       "item": [
         {
-          "name": "Delete assessment (no submissions) -> 204",
+          "name": "Create mentor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/mentors",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "mentors"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Ada\",\n  \"lastName\": \"Byron\",\n  \"email\": \"{{$timestamp}}@mentor.example.com\",\n  \"specialization\": \"Enterprise Java\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Email uses {{$timestamp}} so the request can be re-run without a 409."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"mentorId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List mentors",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/mentors",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "mentors"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submit before enrolling -> 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/assessments/{{objectiveId}}/submissions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assessments",
+                "{{objectiveId}}",
+                "submissions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"studentId\": {{studentId}},\n  \"score\": 85\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "studentId defaults to 1 (a seeded student). Change it in Variables if yours differs."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Enroll student in the course",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/courses/{{courseId}}/enrollments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "courses",
+                "{{courseId}}",
+                "enrollments"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"studentId\": {{studentId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submit OBJECTIVE -> graded at once",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/assessments/{{objectiveId}}/submissions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assessments",
+                "{{objectiveId}}",
+                "submissions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"studentId\": {{studentId}},\n  \"score\": 85\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"status is GRADED\", () => pm.expect(pm.response.json().status).to.eql(\"GRADED\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submit PERFORMANCE -> queued",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/assessments/{{performanceId}}/submissions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assessments",
+                "{{performanceId}}",
+                "submissions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"studentId\": {{studentId}},\n  \"content\": \"Two-phase commit coordinates...\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"status is SUBMITTED\", () => pm.expect(pm.response.json().status).to.eql(\"SUBMITTED\"));",
+                  "pm.collectionVariables.set(\"essaySubmissionId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PERFORMANCE with a score -> 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/assessments/{{performanceId}}/submissions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assessments",
+                "{{performanceId}}",
+                "submissions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"studentId\": {{studentId}},\n  \"score\": 100,\n  \"content\": \"x\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "OBJECTIVE without a score -> 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/assessments/{{objectiveId}}/submissions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assessments",
+                "{{objectiveId}}",
+                "submissions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"studentId\": {{studentId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Grading queue (status=SUBMITTED)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/assessments/{{performanceId}}/submissions?status=SUBMITTED",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assessments",
+                "{{performanceId}}",
+                "submissions"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "SUBMITTED"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unknown status value -> 400",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/assessments/{{performanceId}}/submissions?status=PENDING",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assessments",
+                "{{performanceId}}",
+                "submissions"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "PENDING"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Grade the essay",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/submissions/{{essaySubmissionId}}/grade",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "submissions",
+                "{{essaySubmissionId}}",
+                "grade"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mentorId\": {{mentorId}},\n  \"score\": 72,\n  \"feedback\": \"Clear and correct\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"status is GRADED\", () => pm.expect(pm.response.json().status).to.eql(\"GRADED\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Grade it again -> 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/submissions/{{essaySubmissionId}}/grade",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "submissions",
+                "{{essaySubmissionId}}",
+                "grade"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mentorId\": {{mentorId}},\n  \"score\": 90\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get submission",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/submissions/{{essaySubmissionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "submissions",
+                "{{essaySubmissionId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Student's submissions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/students/{{studentId}}/submissions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "students",
+                "{{studentId}}",
+                "submissions"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Student's notifications (needs Kafka running)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications?recipient=student1@example.com",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "recipient",
+                  "value": "student1@example.com"
+                }
+              ]
+            },
+            "description": "Created by the Kafka consumer a moment after each grade. Adjust recipient to your student's email."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Delete guards",
+      "item": [
+        {
+          "name": "Delete essay WITH submission -> 409",
           "request": {
             "method": "DELETE",
             "header": [],
@@ -850,7 +1462,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"status is 204\", () => pm.response.to.have.status(204));"
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
                 ]
               }
             }
@@ -929,8 +1541,7 @@
                 "assessments",
                 "{{objectiveId}}"
               ]
-            },
-            "description": "Insert a submission for {{objectiveId}} first (see the psql command in the collection description), or this returns 204."
+            }
           },
           "event": [
             {

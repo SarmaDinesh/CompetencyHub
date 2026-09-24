@@ -53,11 +53,13 @@ class AssessmentServiceImplTest {
         when(competencyRepository.findById(7L)).thenReturn(Optional.of(competency));
         when(assessmentRepository.save(any(Assessment.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        PerformanceAssessment created = service.createPerformance(7L, "Essay", 0, 100, null, null);
+        PerformanceAssessment created = service.createPerformance(7L, "Essay", 0, 100, 60, null, null);
 
         // Integer, not int: null survives, meaning "no limit" -- not a limit of zero words.
         assertThat(created.getWordLimit()).isNull();
-        assertThat(created.describeFormat()).isEqualTo("Performance task, graded by rubric");
+        assertThat(created.describeFormat()).isEqualTo("Performance task, graded by rubric, pass at 60");
+        // Pulled up in V9: the pass mark now lives on the parent, for every subtype.
+        assertThat(created.getPassingScore()).isEqualTo(60);
     }
 
     @Test

@@ -70,27 +70,28 @@ class AssessmentControllerTest {
                 // Subtype fields do not leak across: an objective test has no rubric.
                 .andExpect(jsonPath("$.rubricUrl").doesNotExist());
 
-        verify(assessmentService, never()).createPerformance(any(), any(), anyInt(), anyInt(), any(), any());
+        verify(assessmentService, never()).createPerformance(any(), any(), anyInt(), anyInt(), anyInt(), any(), any());
     }
 
     @Test
     void performanceTypeCallsCreatePerformance() throws Exception {
         PerformanceAssessment saved = new PerformanceAssessment(
-                competency, "Essay", new ScoreRange(0, 100), "https://example.com/rubric", 1500);
+                competency, "Essay", new ScoreRange(0, 100), 60, "https://example.com/rubric", 1500);
         ReflectionTestUtils.setField(saved, "id", 4L);
-        when(assessmentService.createPerformance(7L, "Essay", 0, 100, "https://example.com/rubric", 1500))
+        when(assessmentService.createPerformance(7L, "Essay", 0, 100, 60, "https://example.com/rubric", 1500))
                 .thenReturn(saved);
 
         mockMvc.perform(post("/api/competencies/7/assessments")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "type": "PERFORMANCE", "title": "Essay",
-                                  "minScore": 0, "maxScore": 100,
+                                  "minScore": 0, "maxScore": 100, "passingScore": 60,
                                   "rubricUrl": "https://example.com/rubric", "wordLimit": 1500 }
                                 """))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.type").value("PERFORMANCE"))
                 .andExpect(jsonPath("$.wordLimit").value(1500))
+                .andExpect(jsonPath("$.passingScore").value(60))
                 .andExpect(jsonPath("$.questionCount").doesNotExist());
     }
 
@@ -143,7 +144,7 @@ class AssessmentControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "type": "PERFORMANCE", "title": "Essay",
-                                  "minScore": 100, "maxScore": 0 }
+                                  "minScore": 100, "maxScore": 0, "passingScore": 50 }
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.scoreRangeValid").exists());
@@ -170,7 +171,7 @@ class AssessmentControllerTest {
     void listReturnsEachAssessmentWithItsOwnType() throws Exception {
         ObjectiveAssessment quiz = TestFixtures.objectiveAssessment(competency, "Quiz");
         PerformanceAssessment essay = new PerformanceAssessment(
-                competency, "Essay", new ScoreRange(0, 100), null, null);
+                competency, "Essay", new ScoreRange(0, 100), 60, null, null);
         when(assessmentService.findByCompetency(7L)).thenReturn(List.of(quiz, essay));
 
         // A List<AssessmentResponse>: each element must still carry its own "type".

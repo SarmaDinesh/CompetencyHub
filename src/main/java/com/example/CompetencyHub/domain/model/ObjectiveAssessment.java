@@ -27,31 +27,23 @@ public class ObjectiveAssessment extends Assessment {
     @Column(name = "question_count", nullable = false)
     private int questionCount;
 
-    /** Minimum score required to master the competency through this test. */
-    @Column(name = "passing_score", nullable = false)
-    private int passingScore;
-
     /** Required by JPA. */
     protected ObjectiveAssessment() {
     }
 
     public ObjectiveAssessment(Competency competency, String title, ScoreRange scoreRange,
                                int questionCount, int passingScore) {
-        super(competency, title, scoreRange);
+        // passingScore now belongs to the parent (V9), so it goes up through super().
+        super(competency, title, scoreRange, passingScore);
         this.questionCount = questionCount;
-        this.passingScore = passingScore;
     }
 
     @Override
     public String describeFormat() {
-        return questionCount + "-question test, pass at " + passingScore;
+        return questionCount + "-question test, pass at " + getPassingScore();
     }
 
     public int getQuestionCount() {
         return questionCount;
     }
-
-    public int getPassingScore() {
-        return passingScore;
-    }
-}
+}

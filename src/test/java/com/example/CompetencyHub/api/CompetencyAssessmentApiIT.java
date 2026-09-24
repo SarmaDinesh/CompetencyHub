@@ -45,7 +45,7 @@ class CompetencyAssessmentApiIT {
                 TRUNCATE TABLE
                     progress, enrollment, enrollment_attempt, notification,
                     submission, objective_assessment, performance_assessment,
-                    assessment, competency, course, student, job_run
+                    assessment, competency, course, student, mentor, job_run
                 RESTART IDENTITY CASCADE
                 """);
     }
@@ -72,7 +72,8 @@ class CompetencyAssessmentApiIT {
                   "questionCount": 20, "passingScore": 70 }
                 """);
         createAssessment(first, """
-                { "type": "PERFORMANCE", "title": "Design essay", "minScore": 0, "maxScore": 100 }
+                { "type": "PERFORMANCE", "title": "Design essay", "minScore": 0, "maxScore": 100,
+                  "passingScore": 60 }
                 """);
 
         // Read back through a polymorphic query: each row returns as its own subtype, and
@@ -83,7 +84,7 @@ class CompetencyAssessmentApiIT {
                 .body("type", contains("OBJECTIVE", "PERFORMANCE"))
                 .body("[0].passingScore", equalTo(70))
                 .body("[1].wordLimit", nullValue())
-                .body("[1].format", equalTo("Performance task, graded by rubric"));
+                .body("[1].format", equalTo("Performance task, graded by rubric, pass at 60"));
     }
 
     @Test
@@ -97,14 +98,18 @@ class CompetencyAssessmentApiIT {
                   "questionCount": 10, "passingScore": 60 }
                 """);
 
-        // No submission endpoint yet (next branch), so write the graded work directly.
+        // Written directly rather than through the API: this test is about the delete guard,
+        // not about enrollment and submission rules.
         jdbcTemplate.update("""
                 INSERT INTO student (first_name, last_name, email, joined_on)
                 VALUES ('Ada', 'Lovelace', 'ada@example.com', current_date)
                 """);
+        // V9 columns: a graded row needs status, attempt number and graded_at (the CHECK
+        // constraint enforces that a GRADED row has them).
         jdbcTemplate.update("""
-                INSERT INTO submission (student_id, assessment_id, score, submitted_at)
-                VALUES (1, ?, 90, now())
+                INSERT INTO submission (student_id, assessment_id, score, submitted_at,
+                                        status, attempt_number, graded_at)
+                VALUES (1, ?, 90, now(), 'GRADED', 1, now())
                 """, assessmentId);
 
         when().delete("/api/assessments/{id}", assessmentId)
@@ -126,7 +131,8 @@ class CompetencyAssessmentApiIT {
                 { "title": "Scheduling", "weight": 100 }
                 """);
         int assessmentId = createAssessment(competencyId, """
-                { "type": "PERFORMANCE", "title": "Cron lab", "minScore": 0, "maxScore": 10 }
+                { "type": "PERFORMANCE", "title": "Cron lab", "minScore": 0, "maxScore": 10,
+                  "passingScore": 7 }
                 """);
 
         when().delete("/api/competencies/{id}", competencyId)

@@ -1,16 +1,20 @@
 package com.example.CompetencyHub.web.advice;
 
 import com.example.CompetencyHub.common.exception.BusinessRuleException;
+import com.example.CompetencyHub.common.exception.InvalidInputException;
 import com.example.CompetencyHub.common.exception.NotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.net.URI;
 import java.time.Instant;
@@ -103,6 +107,54 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleUnreadable(HttpMessageNotReadableException e) {
         return problem(HttpStatus.BAD_REQUEST,
                 "Request body is missing or malformed JSON", "malformed-request");
+    }
+
+    /**
+     * 400: values that are well formed but wrong for the target -- only the service can tell,
+     * because only the service can see the target (e.g. a score outside THIS assessment's
+     * range). Not 409: fixing the request would make it succeed.
+     */
+    @ExceptionHandler(InvalidInputException.class)
+    public ProblemDetail handleInvalidInput(InvalidInputException e) {
+        return problem(HttpStatus.BAD_REQUEST, e.getMessage(), "invalid-input");
+    }
+
+    /**
+     * 400: a path variable or query parameter that does not convert -- /api/courses/abc, or
+     * ?status=PENDING for an enum that has no PENDING.
+     *
+     * <p>Before this handler existed, these fell through to handleUnexpected() below and came
+     * back as 500. The catch-all Exception handler also catches Spring MVC's own client-error
+     * exceptions, so each one you care about needs its own mapping. (Extending
+     * ResponseEntityExceptionHandler is the alternative that maps all of them at once.)
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ProblemDetail handleTypeMismatch(MethodArgumentTypeMismatchException e) {
+        return problem(HttpStatus.BAD_REQUEST,
+                "Invalid value '" + e.getValue() + "' for parameter '" + e.getName() + "'",
+                "invalid-parameter");
+    }
+
+    /** 400: a required query parameter was left out, e.g. /api/notifications with no recipient. */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ProblemDetail handleMissingParameter(MissingServletRequestParameterException e) {
+        return problem(HttpStatus.BAD_REQUEST,
+                "Missing required parameter '" + e.getParameterName() + "'", "missing-parameter");
+    }
+
+    /**
+     * 409: a database constraint refused the write -- the backstop behind every
+     * check-then-act in the services. Two requests can both pass "is attempt 2 free?" and
+     * only the UNIQUE constraint stops the second.
+     *
+     * <p>The message is deliberately generic. The exception text names the constraint and
+     * often the SQL, which is useful in the log and an information leak in a response.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ProblemDetail handleIntegrityViolation(DataIntegrityViolationException e) {
+        log.warn("Constraint violation: {}", e.getMostSpecificCause().getMessage());
+        return problem(HttpStatus.CONFLICT,
+                "The request conflicts with existing data. Please retry.", "data-conflict");
     }
 
     /**

@@ -30,4 +30,13 @@ public class KafkaConfig {
                 .replicas(1)        // single-broker dev cluster; 3 in production
                 .build();
     }
+
+    /** Same shape as the enrollment topic. Keyed by student id -- see SubmissionEventPublisher. */
+    @Bean
+    public NewTopic submissionGradedTopic() {
+        return TopicBuilder.name(KafkaTopics.SUBMISSION_GRADED)
+                .partitions(3)
+                .replicas(1)
+                .build();
+    }
 }

@@ -105,16 +105,7 @@ public class ProgressRecalculationService {
                     long total = competencyCountByCourse.computeIfAbsent(
                             courseId, competencyRepository::countByCourseId);
 
-                    long mastered = submissionRepository.countMasteredCompetencies(studentId, courseId);
-
-                    // Upsert. The composite key means findById is the existence check, and a
-                    // missing row is a student who has never been recalculated -- normal on the
-                    // first run after enrollment, not an error.
-                    Progress progress = progressRepository
-                            .findById(new ProgressId(studentId, courseId))
-                            .orElseGet(() -> progressRepository.save(new Progress(studentId, courseId)));
-
-                    if (progress.recalculate(mastered, total)) {
+                    if (upsertProgress(studentId, courseId, total)) {
                         updated++;
                     }
                 }
@@ -143,6 +134,42 @@ public class ProgressRecalculationService {
             log.error("{} failed after {} enrollments", JOB_NAME, processed, ex);
             throw ex;
         }
+    }
+
+    /**
+     * Recalculates one student's progress in one course, right now. Called by the Kafka
+     * consumer after a grade, so progress moves within seconds instead of waiting for 2 AM.
+     *
+     * <p>The nightly job stays: it is the safety net that repairs anything a lost message or a
+     * failed consumer left behind. Event-driven for speed, scheduled batch for correctness --
+     * a common pairing.
+     *
+     * <p>No advisory lock here. The lock protects the nightly job from a second copy of
+     * ITSELF; this touches a single row, and the Kafka key (student id) already stops two
+     * consumer threads updating the same student at once.
+     *
+     * @return true if the stored numbers changed
+     */
+    @Transactional
+    public boolean recalculateFor(Long studentId, Long courseId) {
+        return upsertProgress(studentId, courseId, competencyRepository.countByCourseId(courseId));
+    }
+
+    /**
+     * Shared by the batch loop and the single-student path, so there is exactly one
+     * definition of "how progress is computed". Two copies would drift apart.
+     *
+     * <p>Upsert: the composite key means findById is the existence check, and a missing row is
+     * a student who has never been recalculated -- normal right after enrollment, not an error.
+     */
+    private boolean upsertProgress(Long studentId, Long courseId, long totalCompetencies) {
+        long mastered = submissionRepository.countMasteredCompetencies(studentId, courseId);
+
+        Progress progress = progressRepository
+                .findById(new ProgressId(studentId, courseId))
+                .orElseGet(() -> progressRepository.save(new Progress(studentId, courseId)));
+
+        return progress.recalculate(mastered, totalCompetencies);
     }
 
     private void checkRuntime(Instant start) {

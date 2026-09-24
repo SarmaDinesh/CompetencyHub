@@ -9,7 +9,8 @@ import org.hibernate.validator.constraints.URL;
 
 /**
  * A task graded by a mentor against a rubric. rubricUrl and wordLimit are optional, matching
- * the nullable columns in V3.
+ * the nullable columns in V3. passingScore is required since V9: without it a graded essay
+ * could never count toward mastery.
  */
 public record CreatePerformanceAssessmentRequest(
 
@@ -23,6 +24,9 @@ public record CreatePerformanceAssessmentRequest(
 
         @NotNull(message = "maxScore is required")
         Integer maxScore,
+
+        @NotNull(message = "passingScore is required")
+        Integer passingScore,
 
         // Hibernate Validator's own constraint, not part of the jakarta standard set.
         // Null passes; only a present-but-malformed value fails.
@@ -38,5 +42,11 @@ public record CreatePerformanceAssessmentRequest(
     @AssertTrue(message = "minScore must be less than maxScore")
     public boolean isScoreRangeValid() {
         return minScore == null || maxScore == null || minScore < maxScore;
+    }
+
+    @AssertTrue(message = "passingScore must be between minScore and maxScore")
+    public boolean isPassingScoreInRange() {
+        return passingScore == null || minScore == null || maxScore == null
+                || (passingScore >= minScore && passingScore <= maxScore);
     }
 }
