@@ -32,6 +32,17 @@ public class Competency {
         this.orderIndex = orderIndex;
     }
 
+    /**
+     * Replaces the editable fields. The owning course is deliberately not among them:
+     * moving a competency to another course would silently move its assessments and every
+     * student's submissions with it. That is a different operation, not an edit.
+     */
+    public void updateDetails(String title, int weight, int orderIndex) {
+        this.title = title;
+        this.weight = weight;
+        this.orderIndex = orderIndex;
+    }
+
     public Long getId() { return id; }
     public Course getCourse() { return course; }
     void setCourse(Course course) { this.course = course; }
