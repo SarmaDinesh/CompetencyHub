@@ -4,6 +4,7 @@ import com.example.CompetencyHub.common.exception.AlreadyEnrolledException;
 import com.example.CompetencyHub.common.exception.BusinessRuleException;
 import com.example.CompetencyHub.common.exception.NotFoundException;
 import com.example.CompetencyHub.domain.enums.AttemptOutcome;
+import com.example.CompetencyHub.domain.enums.EnrollmentStatus;
 import com.example.CompetencyHub.domain.model.Course;
 import com.example.CompetencyHub.domain.model.Enrollment;
 import com.example.CompetencyHub.domain.model.Student;
@@ -20,9 +21,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.EnumSet;
+import java.util.Set;
 
 @Service
 public class EnrollmentServiceImpl implements EnrollmentService {
+
+    /** Statuses that stop a student enrolling again. WITHDRAWN is deliberately absent. */
+    private static final Set<EnrollmentStatus> BLOCKING_STATUSES =
+            EnumSet.of(EnrollmentStatus.ACTIVE, EnrollmentStatus.COMPLETED);
 
     private final StudentRepository studentRepository;
     private final CourseRepository courseRepository;
@@ -79,10 +86,17 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                     .orElseThrow(() -> new NotFoundException("Course not found: " + courseId));
 
             // Checked before reserving a seat, so a duplicate request cannot consume one.
-            if (enrollmentRepository.existsByStudentIdAndCourseId(studentId, courseId)) {
-                throw new AlreadyEnrolledException(
-                        "Student " + studentId + " is already enrolled in course " + courseId);
-            }
+            //
+            // Only ACTIVE and COMPLETED block a new enrollment. A WITHDRAWN row is history:
+            // the student left, and may come back. Their old row stays untouched and a new
+            // one is inserted, so "enrolled Jan, withdrew Feb, re-enrolled Sep" is all visible.
+            enrollmentRepository
+                    .findFirstByStudentIdAndCourseIdAndStatusIn(studentId, courseId, BLOCKING_STATUSES)
+                    .ifPresent(existing -> {
+                        throw new AlreadyEnrolledException(existing.isActive()
+                                ? "Student " + studentId + " is already enrolled in course " + courseId
+                                : "Student " + studentId + " has already completed course " + courseId);
+                    });
 
             // Throws CourseFullException when nothing is left. The entity enforces it.
             course.reserveSeat();
@@ -132,8 +146,13 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         Enrollment enrollment = enrollmentRepository.findById(enrollmentId)
                 .orElseThrow(() -> new NotFoundException("Enrollment not found: " + enrollmentId));
 
+        // Order matters. withdraw() throws if the enrollment is not ACTIVE, and it runs
+        // BEFORE releaseSeat(), so a repeated DELETE never reaches the seat counter.
+        // Swap these two lines and the bug comes back.
         enrollment.withdraw();
         enrollment.getCourse().releaseSeat();
         // Both entities are managed; dirty checking flushes both updates at commit.
+        // The Course UPDATE carries its @Version check, so two withdrawals racing on the
+        // same course cannot both release a seat either -- one gets a 409 and retries.
     }
 }
