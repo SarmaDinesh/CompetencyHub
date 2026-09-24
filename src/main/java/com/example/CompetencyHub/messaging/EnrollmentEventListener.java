@@ -1,5 +1,6 @@
 package com.example.CompetencyHub.messaging;
 
+import com.example.CompetencyHub.domain.enums.NotificationSource;
 import com.example.CompetencyHub.domain.model.Notification;
 import com.example.CompetencyHub.messaging.event.EnrollmentCreatedEvent;
 import com.example.CompetencyHub.repository.NotificationRepository;
@@ -42,7 +43,8 @@ public class EnrollmentEventListener {
         // processes a batch and dies before committing its offset will see those
         // messages again on restart. Consumers must therefore be idempotent — which
         // here means checking whether this event was already handled.
-        if (notificationRepository.existsBySourceEventId(event.enrollmentId())) {
+        if (notificationRepository.existsByEventTypeAndSourceEventId(
+                NotificationSource.ENROLLMENT_CREATED, event.enrollmentId())) {
             log.debug("Enrollment {} already notified, skipping duplicate", event.enrollmentId());
             return;
         }
@@ -52,7 +54,8 @@ public class EnrollmentEventListener {
                 "Enrolled in " + event.courseCode(),
                 "You are now enrolled in " + event.courseTitle()
                         + " (" + event.courseCode() + ").",
+                NotificationSource.ENROLLMENT_CREATED,
                 event.enrollmentId()
         ));
     }
-}
+}

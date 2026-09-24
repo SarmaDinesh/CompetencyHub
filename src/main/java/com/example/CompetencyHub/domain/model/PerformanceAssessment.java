@@ -34,8 +34,8 @@ public class PerformanceAssessment extends Assessment {
     }
 
     public PerformanceAssessment(Competency competency, String title, ScoreRange scoreRange,
-                                 String rubricUrl, Integer wordLimit) {
-        super(competency, title, scoreRange);
+                                 int passingScore, String rubricUrl, Integer wordLimit) {
+        super(competency, title, scoreRange, passingScore);
         this.rubricUrl = rubricUrl;
         this.wordLimit = wordLimit;
     }
@@ -43,8 +43,8 @@ public class PerformanceAssessment extends Assessment {
     @Override
     public String describeFormat() {
         return wordLimit == null
-                ? "Performance task, graded by rubric"
-                : "Performance task, up to " + wordLimit + " words";
+                ? "Performance task, graded by rubric, pass at " + getPassingScore()
+                : "Performance task, up to " + wordLimit + " words, pass at " + getPassingScore();
     }
 
     public String getRubricUrl() {
@@ -53,5 +53,13 @@ public class PerformanceAssessment extends Assessment {
 
     public Integer getWordLimit() {
         return wordLimit;
+    }
+
+    /** True when there is no limit, or the text fits inside it. */
+    public boolean fitsWordLimit(String text) {
+        if (wordLimit == null || text == null) return true;
+        String trimmed = text.strip();
+        int words = trimmed.isEmpty() ? 0 : trimmed.split("\\s+").length;
+        return words <= wordLimit;
     }
 }

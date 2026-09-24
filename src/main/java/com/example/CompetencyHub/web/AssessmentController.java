@@ -67,7 +67,7 @@ public class AssessmentController {
                     o.questionCount(), o.passingScore());
             case CreatePerformanceAssessmentRequest p -> assessmentService.createPerformance(
                     competencyId, p.title(), p.minScore(), p.maxScore(),
-                    p.rubricUrl(), p.wordLimit());
+                    p.passingScore(), p.rubricUrl(), p.wordLimit());
         };
 
         URI location = uriBuilder.path("/api/assessments/{id}")

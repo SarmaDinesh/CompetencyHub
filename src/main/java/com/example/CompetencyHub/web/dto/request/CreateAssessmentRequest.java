@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
  *   "questionCount": 20, "passingScore": 70 }
  *
  * { "type": "PERFORMANCE", "title": "Essay",  "minScore": 0, "maxScore": 100,
- *   "rubricUrl": "https://...", "wordLimit": 1500 }
+ *   "passingScore": 60, "rubricUrl": "https://...", "wordLimit": 1500 }
  * </pre>
  *
  * <p><b>How it works.</b> {@code @JsonTypeInfo} tells Jackson "read the {@code type}
@@ -46,4 +46,5 @@ public sealed interface CreateAssessmentRequest
     String title();
     Integer minScore();
     Integer maxScore();
+    Integer passingScore();
 }

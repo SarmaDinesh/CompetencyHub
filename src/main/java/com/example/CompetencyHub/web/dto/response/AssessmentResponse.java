@@ -27,7 +27,7 @@ public sealed interface AssessmentResponse {
             implements AssessmentResponse { }
 
     record Performance(Long id, Long competencyId, String title, int minScore, int maxScore,
-                       String format, String rubricUrl, Integer wordLimit)
+                       String format, int passingScore, String rubricUrl, Integer wordLimit)
             implements AssessmentResponse { }
 
     /**
@@ -55,7 +55,7 @@ public sealed interface AssessmentResponse {
             case PerformanceAssessment p -> new Performance(
                     p.getId(), competencyId, p.getTitle(),
                     p.getScoreRange().getMinScore(), p.getScoreRange().getMaxScore(),
-                    p.describeFormat(), p.getRubricUrl(), p.getWordLimit());
+                    p.describeFormat(), p.getPassingScore(), p.getRubricUrl(), p.getWordLimit());
             default -> throw new IllegalStateException(
                     "Unmapped assessment type: " + assessment.getClass().getName());
         };

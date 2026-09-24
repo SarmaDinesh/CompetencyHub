@@ -4,8 +4,12 @@ import com.example.CompetencyHub.domain.embeddable.Address;
 import com.example.CompetencyHub.domain.embeddable.ScoreRange;
 import com.example.CompetencyHub.domain.model.Competency;
 import com.example.CompetencyHub.domain.model.Course;
+import com.example.CompetencyHub.domain.model.Assessment;
+import com.example.CompetencyHub.domain.model.Mentor;
 import com.example.CompetencyHub.domain.model.ObjectiveAssessment;
+import com.example.CompetencyHub.domain.model.PerformanceAssessment;
 import com.example.CompetencyHub.domain.model.Student;
+import com.example.CompetencyHub.domain.model.Submission;
 
 /**
  * Entity construction in one place.
@@ -61,5 +65,38 @@ public final class TestFixtures {
             Competency competency, String title, int passingScore) {
         return new ObjectiveAssessment(
                 competency, title, new ScoreRange(0, 100), 20, passingScore);
+    }
+
+    /** Essay: scores 0-100, pass at 60, no rubric link, no word limit. */
+    public static PerformanceAssessment performanceAssessment(Competency competency, String title) {
+        return new PerformanceAssessment(competency, title, new ScoreRange(0, 100), 60, null, null);
+    }
+
+    // ---- Mentor / Submission ------------------------------------------------
+
+    public static Mentor mentor() {
+        return mentor("grace@example.com");
+    }
+
+    public static Mentor mentor(String email) {
+        return new Mentor("Grace", "Hopper", email, "Compilers");
+    }
+
+    /**
+     * A submission already graded with this score. Goes through the real grade() transition,
+     * same reason savedCourse() in CourseControllerTest calls reserveSeat(): a fixture should
+     * not be able to build a state the domain would refuse.
+     */
+    public static Submission gradedSubmission(Student student, Assessment assessment, int score) {
+        Submission submission = new Submission(student, assessment, 1, null);
+        submission.grade(score, null, null);
+        return submission;
+    }
+
+    public static Submission gradedSubmission(Student student, Assessment assessment,
+                                              int attemptNumber, int score) {
+        Submission submission = new Submission(student, assessment, attemptNumber, null);
+        submission.grade(score, null, null);
+        return submission;
     }
 }

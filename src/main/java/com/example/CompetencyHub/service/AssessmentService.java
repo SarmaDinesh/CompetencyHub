@@ -24,7 +24,7 @@ public interface AssessmentService {
                                         int questionCount, int passingScore);
 
     PerformanceAssessment createPerformance(Long competencyId, String title, int minScore, int maxScore,
-                                            String rubricUrl, Integer wordLimit);
+                                            int passingScore, String rubricUrl, Integer wordLimit);
 
     void delete(Long id);
 }

@@ -64,10 +64,11 @@ public class AssessmentServiceImpl implements AssessmentService {
     @Override
     @Transactional
     public PerformanceAssessment createPerformance(Long competencyId, String title, int minScore,
-                                                   int maxScore, String rubricUrl, Integer wordLimit) {
+                                                   int maxScore, int passingScore,
+                                                   String rubricUrl, Integer wordLimit) {
         Competency competency = loadCompetency(competencyId);
         PerformanceAssessment assessment = new PerformanceAssessment(
-                competency, title, new ScoreRange(minScore, maxScore), rubricUrl, wordLimit);
+                competency, title, new ScoreRange(minScore, maxScore), passingScore, rubricUrl, wordLimit);
         return assessmentRepository.save(assessment);
     }
 

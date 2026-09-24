@@ -45,14 +45,36 @@ public abstract class Assessment {
     @Embedded
     private ScoreRange scoreRange;
 
+    /**
+     * Minimum score that proves the competency. Lives here, not on a subtype, since V9:
+     * once performance tasks needed a pass mark too, it became common to every assessment,
+     * and common state belongs in the parent. "Pull up field" -- the entity mirrors the
+     * column that moved from objective_assessment to assessment.
+     */
+    @Column(name = "passing_score", nullable = false)
+    private int passingScore;
+
     /** Required by JPA. Protected because only subclasses should call it. */
     protected Assessment() {
     }
 
-    protected Assessment(Competency competency, String title, ScoreRange scoreRange) {
+    protected Assessment(Competency competency, String title, ScoreRange scoreRange, int passingScore) {
+        // Same fail-at-construction rule as ScoreRange: an assessment whose pass mark cannot
+        // be reached (or cannot be missed) never exists. The API validates this first so the
+        // client gets a 400; this is the guarantee for every other caller.
+        if (!scoreRange.contains(passingScore)) {
+            throw new IllegalArgumentException("passingScore " + passingScore
+                    + " is outside the range " + scoreRange.getMinScore() + "-" + scoreRange.getMaxScore());
+        }
         this.competency = competency;
         this.title = title;
         this.scoreRange = scoreRange;
+        this.passingScore = passingScore;
+    }
+
+    /** Whether a score is good enough to master the competency. */
+    public boolean isPassing(int score) {
+        return score >= passingScore;
     }
 
     /**
@@ -79,6 +101,10 @@ public abstract class Assessment {
 
     public ScoreRange getScoreRange() {
         return scoreRange;
+    }
+
+    public int getPassingScore() {
+        return passingScore;
     }
 
     // Note: no equals/hashCode override. Entities are identified by id, and an

@@ -4,6 +4,7 @@ package com.example.CompetencyHub.messaging;
 public final class KafkaTopics {
 
     public static final String ENROLLMENT_CREATED = "competencyhub.enrollment.created";
+    public static final String SUBMISSION_GRADED = "competencyhub.submission.graded";
 
     private KafkaTopics() {
     }

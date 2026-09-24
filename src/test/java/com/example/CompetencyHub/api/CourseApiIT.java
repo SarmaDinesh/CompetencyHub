@@ -47,7 +47,7 @@ class CourseApiIT {
                 TRUNCATE TABLE
                     progress, enrollment, enrollment_attempt, notification,
                     submission, objective_assessment, performance_assessment,
-                    assessment, competency, course, student, job_run
+                    assessment, competency, course, student, mentor, job_run
                 RESTART IDENTITY CASCADE
                 """);
     }
@@ -141,4 +141,4 @@ class CourseApiIT {
                 .statusCode(404)
                 .body("status", equalTo(404));
     }
-}
+}
