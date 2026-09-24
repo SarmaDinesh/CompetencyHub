@@ -29,4 +29,13 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
             """, nativeQuery = true)
     long countMasteredCompetencies(@Param("studentId") Long studentId,
                                    @Param("courseId") Long courseId);
+
+    /** Guards assessment deletion: graded work must not disappear with its assessment. */
+    boolean existsByAssessmentId(Long assessmentId);
+
+    /**
+     * Same guard one level up. The derived name walks two associations:
+     * submission.assessment.competency.id -- Spring Data writes the joins.
+     */
+    boolean existsByAssessmentCompetencyId(Long competencyId);
 }
