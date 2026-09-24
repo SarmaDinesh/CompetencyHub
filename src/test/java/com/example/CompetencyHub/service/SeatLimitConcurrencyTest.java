@@ -3,11 +3,13 @@ package com.example.CompetencyHub.service;
 import com.example.CompetencyHub.domain.embeddable.Address;
 import com.example.CompetencyHub.domain.model.Course;
 import com.example.CompetencyHub.domain.model.Student;
+import com.example.CompetencyHub.messaging.EnrollmentEventPublisher;
 import com.example.CompetencyHub.repository.CourseRepository;
 import com.example.CompetencyHub.repository.StudentRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -36,6 +38,9 @@ class SeatLimitConcurrencyTest {
 
     @Autowired
     private StudentRepository studentRepository;
+
+    @MockitoBean
+    private EnrollmentEventPublisher enrollmentEventPublisher;
 
     @Test
     void twoStudentsRacingForTheLastSeat_onlyOneSucceeds() throws Exception {
