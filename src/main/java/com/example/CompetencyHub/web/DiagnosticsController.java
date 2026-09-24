@@ -1,6 +1,7 @@
 package com.example.CompetencyHub.web;
 
 import com.example.CompetencyHub.service.CatalogDiagnosticsService;
+import io.swagger.v3.oas.annotations.Hidden;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -14,6 +15,8 @@ import java.util.Map;
  * <p>Remove before this branch is considered finished — diagnostics do not belong in
  * a public API surface.
  */
+// Left out of the API docs: temporary, for measuring N+1, and not part of the API contract.
+@Hidden
 @RestController
 @RequestMapping("/api/diagnostics")
 public class DiagnosticsController {
@@ -33,4 +36,4 @@ public class DiagnosticsController {
     public Map<String, Integer> fetched() {
         return Map.of("totalCompetencies", diagnosticsService.countCompetenciesFetched());
     }
-}
+}

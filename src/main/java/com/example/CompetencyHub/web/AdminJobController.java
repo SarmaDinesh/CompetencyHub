@@ -4,12 +4,16 @@ import com.example.CompetencyHub.domain.model.JobRun;
 import com.example.CompetencyHub.jobs.JobLauncher;
 import com.example.CompetencyHub.jobs.ProgressRecalculationService;
 import com.example.CompetencyHub.repository.JobRunRepository;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Tag(name = "Admin")
 @RestController
 @RequestMapping("/api/admin/jobs")
 public class AdminJobController {
@@ -31,6 +35,8 @@ public class AdminJobController {
      * The future is deliberately not waited on. Blocking here would defeat the @Async
      * entirely and hold the HTTP thread for the length of the job.
      */
+    @Operation(summary = "Run the progress recalculation job now")
+    @ApiResponse(responseCode = "202", description = "Started in the background; poll the runs endpoint for the outcome")
     @PostMapping("/progress-recalculation")
     public ResponseEntity<Void> triggerProgressRecalculation() {
         jobLauncher.launchProgressRecalculation();
@@ -38,6 +44,8 @@ public class AdminJobController {
     }
 
     /** How you find out what happened, since the trigger above tells you nothing. */
+    @Operation(summary = "Recent runs of the progress recalculation job")
+    @ApiResponse(responseCode = "200", description = "Up to 20 runs, newest first")
     @GetMapping("/progress-recalculation/runs")
     public List<JobRunResponse> recentRuns() {
         return jobRunRepository

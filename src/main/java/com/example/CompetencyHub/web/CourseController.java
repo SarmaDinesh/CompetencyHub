@@ -6,7 +6,12 @@ import com.example.CompetencyHub.web.dto.request.CreateCourseRequest;
 import com.example.CompetencyHub.web.dto.request.UpdateCourseRequest;
 import com.example.CompetencyHub.web.dto.response.CourseResponse;
 import com.example.CompetencyHub.web.dto.response.PageResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
@@ -24,6 +29,7 @@ import java.util.List;
  * what makes an API predictable without reading its documentation.
  */
 
+@Tag(name = "Courses")
 @RestController
 @RequestMapping("/api/courses")
 public class CourseController {
@@ -44,10 +50,17 @@ public class CourseController {
      * <p>Filters belong in the query string, not the path: /api/courses?search=spring
      * is the same collection, narrowed. /api/courses/search would imply a different one.
      */
+    @Operation(summary = "List courses, or search by title",
+            description = "Paged with ?page=, ?size= (default 20) and ?sort= (default code). ?search= does a case-insensitive title match.")
+    @ApiResponse(responseCode = "200", description = "A page of courses; with ?search=, all matches in one page")
     @GetMapping
     public PageResponse<CourseResponse> list(
+            @Parameter(description = "Case-insensitive title fragment; when present, paging is ignored")
             @RequestParam(required = false) String search,
-            @PageableDefault(size = 20, sort = "code") Pageable pageable) {
+            // @ParameterObject: without it, Swagger UI shows Pageable as one JSON-object query
+            // parameter nobody knows how to fill. With it, page, size and sort appear as the
+            // three separate query parameters Spring actually reads.
+            @ParameterObject @PageableDefault(size = 20, sort = "code") Pageable pageable) {
 
         if (search != null && !search.isBlank()) {
             List<CourseResponse> matches = courseService.search(search).stream()
@@ -60,6 +73,9 @@ public class CourseController {
     }
 
     /** 200 with the course, or 404 from the exception handler if it does not exist. */
+    @Operation(summary = "Get a course")
+    @ApiResponse(responseCode = "200", description = "The course")
+    @ApiResponse(responseCode = "404", description = "No course with this id")
     @GetMapping("/{id}")
     public CourseResponse findById(@PathVariable Long id) {
         return CourseResponse.from(courseService.findById(id));
@@ -76,6 +92,11 @@ public class CourseController {
      * resource. 200 would be wrong: it says "here is the result", not "something now
      * exists at this address".
      */
+    @Operation(summary = "Create a course",
+            description = "capacity is optional and defaults to competencyhub.default-course-capacity.")
+    @ApiResponse(responseCode = "201", description = "Created; Location header points at the new course")
+    @ApiResponse(responseCode = "400", description = "Invalid body, e.g. a code not like CS544")
+    @ApiResponse(responseCode = "409", description = "A course with this code already exists")
     @PostMapping
     public ResponseEntity<CourseResponse> create(@Valid @RequestBody CreateCourseRequest request,
                                                  UriComponentsBuilder uriBuilder) {
@@ -102,6 +123,11 @@ public class CourseController {
      * client that times out can safely retry. POST is not — which is exactly why create
      * uses POST and update uses PUT.
      */
+    @Operation(summary = "Replace a course's editable fields")
+    @ApiResponse(responseCode = "200", description = "The updated course")
+    @ApiResponse(responseCode = "400", description = "Invalid body")
+    @ApiResponse(responseCode = "404", description = "No course with this id")
+    @ApiResponse(responseCode = "409", description = "Capacity below current enrollment, or modified concurrently")
     @PutMapping("/{id}")
     public CourseResponse update(@PathVariable Long id,
                                  @Valid @RequestBody UpdateCourseRequest request) {
@@ -115,6 +141,10 @@ public class CourseController {
      * nothing to return. Returning 200 with an empty body, or a "deleted: true" object,
      * is noise the status code already conveys.
      */
+    @Operation(summary = "Delete a course")
+    @ApiResponse(responseCode = "204", description = "Deleted")
+    @ApiResponse(responseCode = "404", description = "No course with this id")
+    @ApiResponse(responseCode = "409", description = "The course has active enrollments")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         courseService.delete(id);
