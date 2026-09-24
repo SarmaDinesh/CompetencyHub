@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -45,6 +46,7 @@ public class CompetencyController {
     @Operation(summary = "List a course's competencies")
     @ApiResponse(responseCode = "200", description = "Competencies in order")
     @ApiResponse(responseCode = "404", description = "No course with this id")
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/courses/{courseId}/competencies")
     public List<CompetencyResponse> listForCourse(@PathVariable Long courseId) {
         return competencyService.findByCourse(courseId).stream()
@@ -57,6 +59,7 @@ public class CompetencyController {
     @ApiResponse(responseCode = "201", description = "Created; Location points at /api/competencies/{id}")
     @ApiResponse(responseCode = "400", description = "Invalid body")
     @ApiResponse(responseCode = "404", description = "No course with this id")
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/courses/{courseId}/competencies")
     public ResponseEntity<CompetencyResponse> create(@PathVariable Long courseId,
                                                      @Valid @RequestBody CreateCompetencyRequest request,
@@ -73,6 +76,7 @@ public class CompetencyController {
     @Operation(summary = "Get a competency")
     @ApiResponse(responseCode = "200", description = "The competency")
     @ApiResponse(responseCode = "404", description = "No competency with this id")
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/competencies/{id}")
     public CompetencyResponse findById(@PathVariable Long id) {
         return CompetencyResponse.from(competencyService.findById(id));
@@ -82,6 +86,7 @@ public class CompetencyController {
     @ApiResponse(responseCode = "200", description = "The updated competency")
     @ApiResponse(responseCode = "400", description = "Invalid body")
     @ApiResponse(responseCode = "404", description = "No competency with this id")
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/competencies/{id}")
     public CompetencyResponse update(@PathVariable Long id,
                                      @Valid @RequestBody UpdateCompetencyRequest request) {
@@ -93,6 +98,7 @@ public class CompetencyController {
     @ApiResponse(responseCode = "204", description = "Deleted")
     @ApiResponse(responseCode = "404", description = "No competency with this id")
     @ApiResponse(responseCode = "409", description = "Students have submitted work against its assessments")
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/competencies/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         competencyService.delete(id);

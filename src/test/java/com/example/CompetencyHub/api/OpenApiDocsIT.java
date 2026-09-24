@@ -115,6 +115,26 @@ class OpenApiDocsIT {
         get("/swagger-ui/index.html").then().statusCode(200);
     }
 
+    @Test
+    void bearerAuthIsDeclaredAndLoginIsPublic() {
+        assertThat(spec.getString("components.securitySchemes.bearerAuth.scheme")).isEqualTo("bearer");
+
+        // An empty security list on an operation = "no token needed" -- must match permitAll().
+        assertThat(spec.getList("paths.'/api/auth/login'.post.security")).isEmpty();
+        assertThat(spec.getList("paths.'/api/auth/register'.post.security")).isEmpty();
+    }
+
+    @Test
+    void everyProtectedOperationDocuments401AndRoleRestrictedOnes403() {
+        Map<String, Object> createCourse = spec.getMap("paths.'/api/courses'.post.responses");
+        assertThat(createCourse).containsKeys("401", "403");
+        assertThat(spec.getString("paths.'/api/courses'.post.description")).contains("hasRole('ADMIN')");
+
+        Map<String, Object> login = spec.getMap("paths.'/api/auth/login'.post.responses");
+        assertThat(login.get("401")).isNotNull();   // its own documented 401: bad credentials
+        assertThat(login).doesNotContainKey("403");
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Map<String, Object>> paths() {
         return (Map<String, Map<String, Object>>) (Map<?, ?>) spec.getMap("paths");

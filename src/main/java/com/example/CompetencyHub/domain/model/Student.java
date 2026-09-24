@@ -28,6 +28,15 @@ public class Student {
     @Column(name = "joined_on", nullable = false)
     private LocalDate joinedOn;
 
+    /**
+     * The login this student uses, if any. LAZY and one-directional: the student knows its account,
+     * the account does not know it is a student. Almost every read of a student (listing
+     * submissions, grading) has no use for the login row, so it is never fetched unless asked.
+     */
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", unique = true)
+    private AppUser user;
+
     protected Student() {
     }
 
@@ -62,4 +71,14 @@ public class Student {
     public LocalDate getJoinedOn() {
         return joinedOn;
     }
+
+    /** Attaches a login. Once only: re-pointing a student at another account would hand their history to someone else. */
+    public void linkUser(AppUser user) {
+        if (this.user != null) {
+            throw new IllegalStateException("Student " + id + " already has a login");
+        }
+        this.user = user;
+    }
+
+    public AppUser getUser() { return user; }
 }

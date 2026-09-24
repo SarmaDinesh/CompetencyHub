@@ -12,6 +12,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import com.example.CompetencyHub.security.WebSecurityTestConfig;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -21,6 +23,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.*;
+import static com.example.CompetencyHub.security.SecurityTestSupport.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -31,6 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * than a 500 or, worse, a silently wrong assessment.
  */
 @WebMvcTest(AssessmentController.class)
+@Import(WebSecurityTestConfig.class)
 class AssessmentControllerTest {
 
     @Autowired private MockMvc mockMvc;
@@ -53,7 +57,7 @@ class AssessmentControllerTest {
         ReflectionTestUtils.setField(saved, "id", 3L);
         when(assessmentService.createObjective(7L, "Quiz 1", 0, 100, 20, 70)).thenReturn(saved);
 
-        mockMvc.perform(post("/api/competencies/7/assessments")
+        mockMvc.perform(post("/api/competencies/7/assessments").with(asAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "type": "OBJECTIVE", "title": "Quiz 1",
@@ -81,7 +85,7 @@ class AssessmentControllerTest {
         when(assessmentService.createPerformance(7L, "Essay", 0, 100, 60, "https://example.com/rubric", 1500))
                 .thenReturn(saved);
 
-        mockMvc.perform(post("/api/competencies/7/assessments")
+        mockMvc.perform(post("/api/competencies/7/assessments").with(asAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "type": "PERFORMANCE", "title": "Essay",
@@ -97,7 +101,7 @@ class AssessmentControllerTest {
 
     @Test
     void missingTypeIs400() throws Exception {
-        mockMvc.perform(post("/api/competencies/7/assessments")
+        mockMvc.perform(post("/api/competencies/7/assessments").with(asAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "title": "Quiz 1", "minScore": 0, "maxScore": 100,
@@ -110,7 +114,7 @@ class AssessmentControllerTest {
 
     @Test
     void unknownTypeIs400() throws Exception {
-        mockMvc.perform(post("/api/competencies/7/assessments")
+        mockMvc.perform(post("/api/competencies/7/assessments").with(asAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "type": "ORAL_EXAM", "title": "Viva", "minScore": 0, "maxScore": 100 }
@@ -126,7 +130,7 @@ class AssessmentControllerTest {
     void subtypeConstraintsRunEvenThoughTheParameterIsTheInterface() throws Exception {
         // questionCount is only declared on the OBJECTIVE record. If @Valid only looked at
         // the declared parameter type, this would slip through.
-        mockMvc.perform(post("/api/competencies/7/assessments")
+        mockMvc.perform(post("/api/competencies/7/assessments").with(asAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "type": "OBJECTIVE", "title": "Quiz 1",
@@ -140,7 +144,7 @@ class AssessmentControllerTest {
 
     @Test
     void invertedScoreRangeIs400NotA500() throws Exception {
-        mockMvc.perform(post("/api/competencies/7/assessments")
+        mockMvc.perform(post("/api/competencies/7/assessments").with(asAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "type": "PERFORMANCE", "title": "Essay",
@@ -154,7 +158,7 @@ class AssessmentControllerTest {
 
     @Test
     void passingScoreOutsideTheRangeIs400() throws Exception {
-        mockMvc.perform(post("/api/competencies/7/assessments")
+        mockMvc.perform(post("/api/competencies/7/assessments").with(asAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "type": "OBJECTIVE", "title": "Quiz 1",
@@ -175,7 +179,7 @@ class AssessmentControllerTest {
         when(assessmentService.findByCompetency(7L)).thenReturn(List.of(quiz, essay));
 
         // A List<AssessmentResponse>: each element must still carry its own "type".
-        mockMvc.perform(get("/api/competencies/7/assessments"))
+        mockMvc.perform(get("/api/competencies/7/assessments").with(asAdmin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].type").value("OBJECTIVE"))
                 .andExpect(jsonPath("$[1].type").value("PERFORMANCE"));
@@ -186,7 +190,7 @@ class AssessmentControllerTest {
         doThrow(new BusinessRuleException("Assessment 3 has student submissions and cannot be deleted"))
                 .when(assessmentService).delete(3L);
 
-        mockMvc.perform(delete("/api/assessments/3"))
+        mockMvc.perform(delete("/api/assessments/3").with(asAdmin()))
                 .andExpect(status().isConflict());
     }
 }

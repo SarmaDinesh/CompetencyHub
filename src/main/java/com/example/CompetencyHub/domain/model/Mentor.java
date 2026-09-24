@@ -36,6 +36,15 @@ public class Mentor {
     @Column(name = "joined_on", nullable = false)
     private LocalDate joinedOn;
 
+    /**
+     * The login this mentor uses, if any. LAZY and one-directional: the mentor knows its account,
+     * the account does not know it is a mentor. Almost every read of a mentor (listing
+     * submissions, grading) has no use for the login row, so it is never fetched unless asked.
+     */
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", unique = true)
+    private AppUser user;
+
     protected Mentor() {
     }
 
@@ -53,4 +62,14 @@ public class Mentor {
     public String getEmail() { return email; }
     public String getSpecialization() { return specialization; }
     public LocalDate getJoinedOn() { return joinedOn; }
+
+    /** Attaches a login. Once only: re-pointing a mentor at another account would hand their history to someone else. */
+    public void linkUser(AppUser user) {
+        if (this.user != null) {
+            throw new IllegalStateException("Mentor " + id + " already has a login");
+        }
+        this.user = user;
+    }
+
+    public AppUser getUser() { return user; }
 }

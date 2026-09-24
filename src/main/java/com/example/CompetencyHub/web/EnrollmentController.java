@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -44,6 +45,7 @@ public class EnrollmentController {
     @ApiResponse(responseCode = "400", description = "studentId missing")
     @ApiResponse(responseCode = "404", description = "No such student or course")
     @ApiResponse(responseCode = "409", description = "Course full, already enrolled or completed, or the last seat was taken concurrently")
+    @PreAuthorize("hasRole('ADMIN') or @access.isStudent(#request.studentId())")
     @PostMapping("/courses/{courseId}/enrollments")
     public ResponseEntity<EnrollmentResponse> enroll(@PathVariable Long courseId,
                                                      @Valid @RequestBody EnrollRequest request) {
@@ -58,6 +60,7 @@ public class EnrollmentController {
     @ApiResponse(responseCode = "204", description = "Withdrawn; the seat is released")
     @ApiResponse(responseCode = "404", description = "No enrollment with this id")
     @ApiResponse(responseCode = "409", description = "The enrollment is not ACTIVE")
+    @PreAuthorize("hasRole('ADMIN') or @access.ownsEnrollment(#enrollmentId)")
     @DeleteMapping("/enrollments/{enrollmentId}")
     public ResponseEntity<Void> withdraw(@PathVariable Long enrollmentId) {
         enrollmentService.withdraw(enrollmentId);

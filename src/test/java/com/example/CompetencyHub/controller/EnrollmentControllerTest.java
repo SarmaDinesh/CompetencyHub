@@ -6,10 +6,13 @@ import com.example.CompetencyHub.web.EnrollmentController;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import com.example.CompetencyHub.security.WebSecurityTestConfig;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static com.example.CompetencyHub.security.SecurityTestSupport.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -19,6 +22,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * which error shape, and whether the request was stopped before reaching the service.
  */
 @WebMvcTest(EnrollmentController.class)
+@Import(WebSecurityTestConfig.class)
 class EnrollmentControllerTest {
 
     @Autowired private MockMvc mockMvc;
@@ -30,7 +34,7 @@ class EnrollmentControllerTest {
 
     @Test
     void enrollWithoutStudentIdIs400NotA500() throws Exception {
-        mockMvc.perform(post("/api/courses/1/enrollments")
+        mockMvc.perform(post("/api/courses/1/enrollments").with(asStudent(1L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())
@@ -44,7 +48,7 @@ class EnrollmentControllerTest {
 
     @Test
     void enrollWithExplicitNullStudentIdIs400() throws Exception {
-        mockMvc.perform(post("/api/courses/1/enrollments")
+        mockMvc.perform(post("/api/courses/1/enrollments").with(asStudent(1L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "studentId": null }
@@ -64,7 +68,7 @@ class EnrollmentControllerTest {
 
         // 409, not 204. A second DELETE that "succeeds" tells the client nothing went wrong,
         // which is exactly how the extra seat went unnoticed.
-        mockMvc.perform(delete("/api/enrollments/5"))
+        mockMvc.perform(delete("/api/enrollments/5").with(asAdmin()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409))
                 .andExpect(jsonPath("$.detail").value(
@@ -73,9 +77,22 @@ class EnrollmentControllerTest {
 
     @Test
     void withdrawingAnActiveEnrollmentIs204() throws Exception {
-        mockMvc.perform(delete("/api/enrollments/5"))
+        mockMvc.perform(delete("/api/enrollments/5").with(asAdmin()))
                 .andExpect(status().isNoContent());
 
         verify(enrollmentService).withdraw(5L);
+    }
+
+    // ---- ownership ------------------------------------------------------------------
+
+    @Test
+    void aStudentCannotEnrollSomeoneElse() throws Exception {
+        mockMvc.perform(post("/api/courses/1/enrollments").with(asStudent(7L))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "studentId": 8 }
+                                """))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(enrollmentService);
     }
 }

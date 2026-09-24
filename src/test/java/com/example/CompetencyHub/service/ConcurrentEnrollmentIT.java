@@ -56,7 +56,7 @@ class ConcurrentEnrollmentIT {
                 TRUNCATE TABLE
                     progress, enrollment, enrollment_attempt, notification,
                     submission, objective_assessment, performance_assessment,
-                    assessment, competency, course, student, mentor, job_run
+                    assessment, competency, course, student, mentor, app_user, job_run
                 RESTART IDENTITY CASCADE
                 """);
     }

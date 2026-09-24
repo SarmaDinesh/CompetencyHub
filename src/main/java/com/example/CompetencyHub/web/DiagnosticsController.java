@@ -2,6 +2,7 @@ package com.example.CompetencyHub.web;
 
 import com.example.CompetencyHub.service.CatalogDiagnosticsService;
 import io.swagger.v3.oas.annotations.Hidden;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,11 +28,13 @@ public class DiagnosticsController {
         this.diagnosticsService = diagnosticsService;
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/n-plus-one")
     public Map<String, Integer> naive() {
         return Map.of("totalCompetencies", diagnosticsService.countCompetenciesNaive());
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/fetch-join")
     public Map<String, Integer> fetched() {
         return Map.of("totalCompetencies", diagnosticsService.countCompetenciesFetched());

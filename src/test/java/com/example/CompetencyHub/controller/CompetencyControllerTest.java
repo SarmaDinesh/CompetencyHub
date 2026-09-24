@@ -8,6 +8,8 @@ import com.example.CompetencyHub.web.CompetencyController;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import com.example.CompetencyHub.security.WebSecurityTestConfig;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -17,11 +19,13 @@ import java.util.List;
 
 import static com.example.CompetencyHub.TestFixtures.course;
 import static org.hamcrest.Matchers.containsString;
+import static com.example.CompetencyHub.security.SecurityTestSupport.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(CompetencyController.class)
+@Import(WebSecurityTestConfig.class)
 class CompetencyControllerTest {
 
     @Autowired private MockMvc mockMvc;
@@ -42,7 +46,7 @@ class CompetencyControllerTest {
         when(competencyService.create(1L, "Transactions", 25, null))
                 .thenReturn(savedCompetency(7L, "Transactions", 1));
 
-        mockMvc.perform(post("/api/courses/1/competencies")
+        mockMvc.perform(post("/api/courses/1/competencies").with(asAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "title": "Transactions", "weight": 25 }
@@ -56,7 +60,7 @@ class CompetencyControllerTest {
 
     @Test
     void weightOutOfRangeIs400() throws Exception {
-        mockMvc.perform(post("/api/courses/1/competencies")
+        mockMvc.perform(post("/api/courses/1/competencies").with(asAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "title": "Transactions", "weight": 0 }
@@ -73,7 +77,7 @@ class CompetencyControllerTest {
                 savedCompetency(7L, "Transactions", 1),
                 savedCompetency(8L, "Messaging", 2)));
 
-        mockMvc.perform(get("/api/courses/1/competencies"))
+        mockMvc.perform(get("/api/courses/1/competencies").with(asAdmin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].title").value("Transactions"))
                 .andExpect(jsonPath("$[1].title").value("Messaging"));
@@ -83,7 +87,7 @@ class CompetencyControllerTest {
     void listForUnknownCourseIs404() throws Exception {
         when(competencyService.findByCourse(99L)).thenThrow(new NotFoundException("Course not found: 99"));
 
-        mockMvc.perform(get("/api/courses/99/competencies"))
+        mockMvc.perform(get("/api/courses/99/competencies").with(asAdmin()))
                 .andExpect(status().isNotFound());
     }
 
@@ -91,7 +95,7 @@ class CompetencyControllerTest {
     void putRequiresEveryField() throws Exception {
         // PUT replaces the resource, so orderIndex is required here even though it is
         // optional on create.
-        mockMvc.perform(put("/api/competencies/7")
+        mockMvc.perform(put("/api/competencies/7").with(asAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "title": "Transactions", "weight": 25 }
@@ -102,7 +106,7 @@ class CompetencyControllerTest {
 
     @Test
     void deleteReturns204() throws Exception {
-        mockMvc.perform(delete("/api/competencies/7"))
+        mockMvc.perform(delete("/api/competencies/7").with(asAdmin()))
                 .andExpect(status().isNoContent());
 
         verify(competencyService).delete(7L);

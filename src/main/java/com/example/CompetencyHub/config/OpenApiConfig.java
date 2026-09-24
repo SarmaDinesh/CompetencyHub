@@ -9,12 +9,17 @@ import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.media.*;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
+import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.tags.Tag;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import org.springdoc.core.customizers.OpenApiCustomizer;
+import org.springdoc.core.customizers.OperationCustomizer;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.info.BuildProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
 
@@ -41,6 +46,7 @@ public class OpenApiConfig {
 
     static final String PROBLEM_SCHEMA = "ProblemDetail";
     static final String PROBLEM_MEDIA_TYPE = "application/problem+json";
+    static final String BEARER_SCHEME = "bearerAuth";
 
     @Bean
     public OpenAPI competencyHubOpenApi(ObjectProvider<BuildProperties> buildProperties) {
@@ -66,6 +72,7 @@ public class OpenApiConfig {
                 // Declared here so Swagger UI shows the groups in THIS order, with descriptions,
                 // rather than alphabetically with none.
                 .tags(List.of(
+                        new Tag().name("Auth").description("Register, log in, and inspect your token. Log in, then click Authorize and paste the accessToken."),
                         new Tag().name("Courses").description("Course catalog and seat capacity"),
                         new Tag().name("Competencies").description("The skills a course is made of"),
                         new Tag().name("Assessments").description("Objective tests and performance tasks that prove a competency"),
@@ -74,7 +81,49 @@ public class OpenApiConfig {
                         new Tag().name("Mentors").description("People who grade performance tasks"),
                         new Tag().name("Notifications").description("Messages produced by enrollment and grading events"),
                         new Tag().name("Admin").description("Operational endpoints: scheduled jobs")))
-                .components(new Components().addSchemas(PROBLEM_SCHEMA, problemDetailSchema()));
+                // Every operation requires a bearer token unless it opts out with an empty
+                // @SecurityRequirements (register, login). This is what puts the "Authorize"
+                // button in Swagger UI: paste a token once and Try-it-out sends it everywhere.
+                .addSecurityItem(new SecurityRequirement().addList(BEARER_SCHEME))
+                .components(new Components()
+                        .addSchemas(PROBLEM_SCHEMA, problemDetailSchema())
+                        .addSecuritySchemes(BEARER_SCHEME, new SecurityScheme()
+                                .type(SecurityScheme.Type.HTTP)
+                                .scheme("bearer")
+                                .bearerFormat("JWT")
+                                .description("Token from POST /api/auth/login")));
+    }
+
+    /**
+     * Documents security per operation, from the code that enforces it.
+     *
+     * <ul>
+     *   <li>Every operation that needs a token gets a 401.</li>
+     *   <li>Every method with {@code @PreAuthorize} gets a 403, and its description says who is
+     *       allowed -- the expression itself, read off the annotation. The docs cannot claim
+     *       "admins only" while the code says otherwise, because the docs ARE the code.</li>
+     * </ul>
+     */
+    @Bean
+    public OperationCustomizer securityResponses() {
+        return (operation, handlerMethod) -> {
+            boolean isPublic = handlerMethod.hasMethodAnnotation(SecurityRequirements.class);
+            ApiResponses responses = ensureResponses(operation);
+
+            if (!isPublic) {
+                responses.computeIfAbsent("401",
+                        code -> new ApiResponse().description("Missing, invalid or expired bearer token"));
+            }
+
+            PreAuthorize rule = handlerMethod.getMethodAnnotation(PreAuthorize.class);
+            if (rule != null) {
+                responses.computeIfAbsent("403",
+                        code -> new ApiResponse().description("Authenticated, but not permitted"));
+                String existing = operation.getDescription() == null ? "" : operation.getDescription() + "\n\n";
+                operation.setDescription(existing + "**Access:** `" + rule.value() + "`");
+            }
+            return operation;
+        };
     }
 
     /**

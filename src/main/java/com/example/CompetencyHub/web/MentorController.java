@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -29,11 +30,13 @@ public class MentorController {
     @ApiResponse(responseCode = "201", description = "Created")
     @ApiResponse(responseCode = "400", description = "Invalid body")
     @ApiResponse(responseCode = "409", description = "A mentor with this email already exists")
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ResponseEntity<MentorResponse> create(@Valid @RequestBody CreateMentorRequest request,
                                                  UriComponentsBuilder uriBuilder) {
         Mentor created = mentorService.create(
-                request.firstName(), request.lastName(), request.email(), request.specialization());
+                request.firstName(), request.lastName(), request.email(), request.specialization(),
+                request.password());
         return ResponseEntity
                 .created(uriBuilder.path("/api/mentors/{id}").buildAndExpand(created.getId()).toUri())
                 .body(MentorResponse.from(created));
@@ -41,6 +44,7 @@ public class MentorController {
 
     @Operation(summary = "List mentors")
     @ApiResponse(responseCode = "200", description = "All mentors, by last name")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MENTOR')")
     @GetMapping
     public List<MentorResponse> list() {
         return mentorService.findAll().stream().map(MentorResponse::from).toList();
@@ -49,6 +53,7 @@ public class MentorController {
     @Operation(summary = "Get a mentor")
     @ApiResponse(responseCode = "200", description = "The mentor")
     @ApiResponse(responseCode = "404", description = "No mentor with this id")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MENTOR')")
     @GetMapping("/{id}")
     public MentorResponse findById(@PathVariable Long id) {
         return MentorResponse.from(mentorService.findById(id));

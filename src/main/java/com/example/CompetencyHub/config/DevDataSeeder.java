@@ -1,15 +1,21 @@
 package com.example.CompetencyHub.config;
 
 import com.example.CompetencyHub.domain.embeddable.Address;
+import com.example.CompetencyHub.domain.enums.Role;
+import com.example.CompetencyHub.domain.model.AppUser;
 import com.example.CompetencyHub.domain.model.Competency;
 import com.example.CompetencyHub.domain.model.Course;
 import com.example.CompetencyHub.domain.model.Mentor;
 import com.example.CompetencyHub.domain.model.Student;
+import com.example.CompetencyHub.repository.AppUserRepository;
 import com.example.CompetencyHub.repository.CourseRepository;
 import com.example.CompetencyHub.repository.MentorRepository;
 import com.example.CompetencyHub.repository.StudentRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Profile;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 /**
@@ -26,15 +32,29 @@ import org.springframework.stereotype.Component;
 @Profile("dev")
 public class DevDataSeeder implements CommandLineRunner {
 
+    private static final Logger log = LoggerFactory.getLogger(DevDataSeeder.class);
+
     private final CourseRepository courseRepository;
     private final StudentRepository studentRepository;
     private final MentorRepository mentorRepository;
+    private final AppUserRepository appUserRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    /**
+     * One password for every seeded login, printed in the startup log. Acceptable ONLY because
+     * this class exists solely under the dev profile (@Profile("dev")) -- it is never
+     * instantiated in docker or production, so these accounts never exist there.
+     */
+    static final String DEV_PASSWORD = "password123";
 
     public DevDataSeeder(CourseRepository courseRepository, StudentRepository studentRepository,
-                         MentorRepository mentorRepository) {
+                         MentorRepository mentorRepository, AppUserRepository appUserRepository,
+                         PasswordEncoder passwordEncoder) {
         this.courseRepository = courseRepository;
         this.studentRepository = studentRepository;
         this.mentorRepository = mentorRepository;
+        this.appUserRepository = appUserRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Override
@@ -84,5 +104,34 @@ public class DevDataSeeder implements CommandLineRunner {
         if (!mentorRepository.existsByEmail("mentor@example.com")) {
             mentorRepository.save(new Mentor("Grace", "Hopper", "mentor@example.com", "Enterprise Java"));
         }
+
+        // ---- Logins (V10) -------------------------------------------------------------
+        // The first ADMIN cannot come from the API: registration only ever creates students,
+        // and only an admin can create mentors. Something has to bootstrap the first one.
+        ensureLogin("admin@example.com", Role.ADMIN);
+
+        // Give the seeded mentor and first student a login. Idempotent AND safe on a database
+        // seeded before V10: the rows exist, only the link is missing, so link rather than
+        // create duplicates.
+        mentorRepository.findByEmail("mentor@example.com")
+                .filter(m -> m.getUser() == null)
+                .ifPresent(m -> {
+                    m.linkUser(ensureLogin(m.getEmail(), Role.MENTOR));
+                    mentorRepository.save(m);
+                });
+        studentRepository.findByEmail("student1@example.com")
+                .filter(s -> s.getUser() == null)
+                .ifPresent(s -> {
+                    s.linkUser(ensureLogin(s.getEmail(), Role.STUDENT));
+                    studentRepository.save(s);
+                });
+
+        log.info("Dev logins (password '{}'): admin@example.com, mentor@example.com, student1@example.com",
+                DEV_PASSWORD);
+    }
+
+    private AppUser ensureLogin(String email, Role role) {
+        return appUserRepository.findByEmail(email).orElseGet(() ->
+                appUserRepository.save(new AppUser(email, passwordEncoder.encode(DEV_PASSWORD), role)));
     }
 }
