@@ -5,6 +5,9 @@ import com.example.CompetencyHub.service.CompetencyService;
 import com.example.CompetencyHub.web.dto.request.CreateCompetencyRequest;
 import com.example.CompetencyHub.web.dto.request.UpdateCompetencyRequest;
 import com.example.CompetencyHub.web.dto.response.CompetencyResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -28,6 +31,7 @@ import java.util.List;
  *
  * "Nest to create and list, flat to address one" is the common REST convention.
  */
+@Tag(name = "Competencies")
 @RestController
 @RequestMapping("/api")
 public class CompetencyController {
@@ -38,6 +42,9 @@ public class CompetencyController {
         this.competencyService = competencyService;
     }
 
+    @Operation(summary = "List a course's competencies")
+    @ApiResponse(responseCode = "200", description = "Competencies in order")
+    @ApiResponse(responseCode = "404", description = "No course with this id")
     @GetMapping("/courses/{courseId}/competencies")
     public List<CompetencyResponse> listForCourse(@PathVariable Long courseId) {
         return competencyService.findByCourse(courseId).stream()
@@ -45,6 +52,11 @@ public class CompetencyController {
                 .toList();
     }
 
+    @Operation(summary = "Add a competency to a course",
+            description = "orderIndex is optional: omitted means after the last one.")
+    @ApiResponse(responseCode = "201", description = "Created; Location points at /api/competencies/{id}")
+    @ApiResponse(responseCode = "400", description = "Invalid body")
+    @ApiResponse(responseCode = "404", description = "No course with this id")
     @PostMapping("/courses/{courseId}/competencies")
     public ResponseEntity<CompetencyResponse> create(@PathVariable Long courseId,
                                                      @Valid @RequestBody CreateCompetencyRequest request,
@@ -58,11 +70,18 @@ public class CompetencyController {
         return ResponseEntity.created(location).body(CompetencyResponse.from(created));
     }
 
+    @Operation(summary = "Get a competency")
+    @ApiResponse(responseCode = "200", description = "The competency")
+    @ApiResponse(responseCode = "404", description = "No competency with this id")
     @GetMapping("/competencies/{id}")
     public CompetencyResponse findById(@PathVariable Long id) {
         return CompetencyResponse.from(competencyService.findById(id));
     }
 
+    @Operation(summary = "Replace a competency's editable fields")
+    @ApiResponse(responseCode = "200", description = "The updated competency")
+    @ApiResponse(responseCode = "400", description = "Invalid body")
+    @ApiResponse(responseCode = "404", description = "No competency with this id")
     @PutMapping("/competencies/{id}")
     public CompetencyResponse update(@PathVariable Long id,
                                      @Valid @RequestBody UpdateCompetencyRequest request) {
@@ -70,6 +89,10 @@ public class CompetencyController {
                 id, request.title(), request.weight(), request.orderIndex()));
     }
 
+    @Operation(summary = "Delete a competency and its assessments")
+    @ApiResponse(responseCode = "204", description = "Deleted")
+    @ApiResponse(responseCode = "404", description = "No competency with this id")
+    @ApiResponse(responseCode = "409", description = "Students have submitted work against its assessments")
     @DeleteMapping("/competencies/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         competencyService.delete(id);

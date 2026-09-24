@@ -5,6 +5,8 @@ import com.example.CompetencyHub.domain.model.ObjectiveAssessment;
 import com.example.CompetencyHub.domain.model.PerformanceAssessment;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import io.swagger.v3.oas.annotations.media.DiscriminatorMapping;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * An assessment as returned by the API. The mirror image of CreateAssessmentRequest: the
@@ -15,6 +17,14 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
  * null. That works, but the client can no longer tell "this test has no word limit" from
  * "tests never have word limits" -- the shape stops describing the thing.
  */
+@Schema(
+        description = "An assessment; `type` says which shape",
+        oneOf = {AssessmentResponse.Objective.class, AssessmentResponse.Performance.class},
+        discriminatorProperty = "type",
+        discriminatorMapping = {
+                @DiscriminatorMapping(value = "OBJECTIVE", schema = AssessmentResponse.Objective.class),
+                @DiscriminatorMapping(value = "PERFORMANCE", schema = AssessmentResponse.Performance.class)
+        })
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
         @JsonSubTypes.Type(value = AssessmentResponse.Objective.class, name = "OBJECTIVE"),
@@ -22,10 +32,12 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 })
 public sealed interface AssessmentResponse {
 
+    @Schema(name = "ObjectiveAssessmentResponse")
     record Objective(Long id, Long competencyId, String title, int minScore, int maxScore,
                      String format, int questionCount, int passingScore)
             implements AssessmentResponse { }
 
+    @Schema(name = "PerformanceAssessmentResponse")
     record Performance(Long id, Long competencyId, String title, int minScore, int maxScore,
                        String format, int passingScore, String rubricUrl, Integer wordLimit)
             implements AssessmentResponse { }

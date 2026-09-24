@@ -2,6 +2,8 @@ package com.example.CompetencyHub.web.dto.request;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import io.swagger.v3.oas.annotations.media.DiscriminatorMapping;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * Body of POST /api/competencies/{id}/assessments -- ONE endpoint, TWO shapes.
@@ -35,6 +37,25 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
  * Jackson 3: the core moved to the {@code tools.jackson} package, but the annotations
  * module kept its old name so existing code keeps compiling.
  */
+/*
+ * The OpenAPI side of the same idea. Jackson's annotations tell the RUNTIME how to pick a
+ * record; @Schema tells the DOCUMENTATION. In the spec this becomes
+ *   oneOf: [CreateObjectiveAssessmentRequest, CreatePerformanceAssessmentRequest]
+ *   discriminator: { propertyName: type, mapping: { OBJECTIVE: ..., PERFORMANCE: ... } }
+ * which is what lets a client generator (openapi-generator, or Angular's later) produce a
+ * proper union type instead of one bag of optional fields.
+ *
+ * Two sets of annotations saying the same thing is the cost of code-first docs; the
+ * OpenApiDocsIT test checks the spec still has both subtypes, so they cannot silently drift.
+ */
+@Schema(
+        description = "An objective test or a performance task, selected by `type`",
+        oneOf = {CreateObjectiveAssessmentRequest.class, CreatePerformanceAssessmentRequest.class},
+        discriminatorProperty = "type",
+        discriminatorMapping = {
+                @DiscriminatorMapping(value = "OBJECTIVE", schema = CreateObjectiveAssessmentRequest.class),
+                @DiscriminatorMapping(value = "PERFORMANCE", schema = CreatePerformanceAssessmentRequest.class)
+        })
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
         @JsonSubTypes.Type(value = CreateObjectiveAssessmentRequest.class, name = "OBJECTIVE"),
