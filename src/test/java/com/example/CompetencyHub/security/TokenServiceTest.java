@@ -10,6 +10,9 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.test.util.ReflectionTestUtils;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 
 import java.time.Duration;
 
@@ -31,7 +34,7 @@ class TokenServiceTest {
     @BeforeEach
     void setUp() throws Exception {
         RSAKey key = config.jwtSigningKey(properties);
-        tokenService = new TokenService(config.jwtEncoder(key), properties);
+        tokenService = new TokenService(config.jwtEncoder(key), properties,  Clock.systemUTC());
         decoder = config.jwtDecoder(key, properties);
     }
 
@@ -45,14 +48,14 @@ class TokenServiceTest {
         assertThat(jwt.getClaimAsStringList("roles")).containsExactly("STUDENT");
         assertThat(((Number) jwt.getClaims().get("studentId")).longValue()).isEqualTo(7L);
         assertThat(jwt.getClaims()).doesNotContainKey("mentorId");
-        assertThat(jwt.getIssuer().toString()).isEqualTo("competencyhub");
+        assertThat(jwt.getClaimAsString("iss")).isEqualTo("competencyhub");
     }
 
     @Test
     void aTokenSignedByAnotherKeyIsRejected() throws Exception {
         // Same code, same issuer, different key pair: exactly what a forger would have.
         RSAKey otherKey = config.jwtSigningKey(properties);
-        TokenService forger = new TokenService(config.jwtEncoder(otherKey), properties);
+        TokenService forger = new TokenService(config.jwtEncoder(otherKey), properties,  Clock.systemUTC());
         String forged = forger.issue(user("mallory@example.com", Role.ADMIN, 666L), null, null).value();
 
         assertThatThrownBy(() -> decoder.decode(forged)).isInstanceOf(JwtException.class);
@@ -62,7 +65,7 @@ class TokenServiceTest {
     void aTokenFromAnotherIssuerIsRejected() throws Exception {
         RSAKey key = config.jwtSigningKey(properties);
         JwtProperties otherIssuer = new JwtProperties("someone-else", Duration.ofHours(1), null, null);
-        String token = new TokenService(config.jwtEncoder(key), otherIssuer)
+        String token = new TokenService(config.jwtEncoder(key), otherIssuer,  Clock.systemUTC())
                 .issue(user("ada@example.com", Role.STUDENT, 5L), 7L, null).value();
 
         // Correct signature, wrong "iss": still refused.
@@ -72,10 +75,11 @@ class TokenServiceTest {
 
     @Test
     void anExpiredTokenIsRejected() throws Exception {
-        // Negative TTL: expired before it was issued -- and beyond the 60s clock-skew allowance.
-        JwtProperties expired = new JwtProperties("competencyhub", Duration.ofMinutes(-5), null, null);
+        // Issued 2 hours ago with a 1-hour lifetime: it expired an hour ago -- well past
+        // the decoder's 60-second clock-skew allowance.
+        Clock twoHoursAgo = Clock.fixed(Instant.now().minusSeconds(7200), ZoneOffset.UTC);
         RSAKey key = config.jwtSigningKey(properties);
-        String token = new TokenService(config.jwtEncoder(key), expired)
+        String token = new TokenService(config.jwtEncoder(key), properties, twoHoursAgo)
                 .issue(user("ada@example.com", Role.STUDENT, 5L), 7L, null).value();
 
         assertThatThrownBy(() -> config.jwtDecoder(key, properties).decode(token))

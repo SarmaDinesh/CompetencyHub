@@ -22,6 +22,7 @@ import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.time.Clock;
 
 /**
  * The signing key, and the two objects that use it: a JwtEncoder to issue tokens at login,
@@ -98,6 +99,12 @@ public class JwtConfig {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withPublicKey(jwtSigningKey.toRSAPublicKey()).build();
         decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(properties.issuer()));
         return decoder;
+    }
+
+    /** The one place the app reads the time from; tests replace it with Clock.fixed(...). */
+    @Bean
+    public Clock clock() {
+        return Clock.systemUTC();
     }
 
     private static <T> T read(org.springframework.core.io.Resource resource, boolean isPublic) {

@@ -1,0 +1,33 @@
+# ---------------------------------------------------------------------------
+# Everything listed here is NOT sent to Docker as build context.
+# Rule of thumb: the image is built from source + build files, nothing else.
+# ---------------------------------------------------------------------------
+
+# Local build output -- the Dockerfile compiles its own inside Linux
+target/
+
+# Version control and IDE files
+.git
+.gitignore
+.gitattributes
+.idea/
+.vscode/
+*.iml
+
+# Runtime leftovers from running the app locally
+logs/
+*.log
+
+# Secrets: never let these near an image
+.env
+.env.*
+*.pem
+*.key
+
+# Not needed to build the application
+docs/
+monitoring/
+docker-compose.yml
+Dockerfile
+.dockerignore
+*.md

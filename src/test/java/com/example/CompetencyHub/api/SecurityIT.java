@@ -21,6 +21,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Clock;
 import java.time.Duration;
 
 import static io.restassured.RestAssured.given;
@@ -83,7 +84,7 @@ class SecurityIT {
         // A perfectly well-formed ADMIN token -- signed by a key this server has never seen.
         JwtConfig config = new JwtConfig();
         JwtProperties props = new JwtProperties("competencyhub", Duration.ofHours(1), null, null);
-        TokenService forger = new TokenService(config.jwtEncoder(config.jwtSigningKey(props)), props);
+        TokenService forger = new TokenService(config.jwtEncoder(config.jwtSigningKey(props)), props, Clock.systemUTC());
         AppUser fakeAdmin = new AppUser("mallory@example.com", "x", Role.ADMIN);
         ReflectionTestUtils.setField(fakeAdmin, "id", 1L);
 
@@ -219,10 +220,24 @@ class SecurityIT {
 
     @Test
     void healthIsPublicButItsDetailsAreNot() {
+        // No Kafka broker in the test run: KafkaHealthIndicator is DOWN, so the aggregate is
+        // DOWN and Actuator answers 503. Either code is fine here -- what this test protects
+        // is that an anonymous caller sees a status and NO component details.
         when().get("/actuator/health")
-                .then().statusCode(200)
+                .then().statusCode(anyOf(is(200), is(503)))
                 .body("status", notNullValue())
-                .body("components", nullValue());   // no DB/Kafka internals for anonymous callers
+                .body("components", nullValue());
+    }
+
+    @Test
+    void livenessIsUpEvenWhenADependencyIsDown() {
+        // Liveness answers only "is this process alive?" -- not "is Kafka up?". If an
+        // orchestrator used the aggregate /actuator/health to decide restarts, a Kafka outage
+        // would restart every healthy app instance in a loop. This probe is what a container
+        // health check should call; we'll use it in the Docker step.
+        when().get("/actuator/health/liveness")
+                .then().statusCode(200)
+                .body("status", equalTo("UP"));
     }
 
     @Test
