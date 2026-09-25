@@ -6,7 +6,7 @@
 # =============================================================================
 # Stage 1: build
 # =============================================================================
-FROM eclipse-temurin:21-jdk AS build
+FROM eclipse-temurin:25-jdk AS build
 WORKDIR /workspace
 
 # --- 1. Build definition first: changes rarely, so its layers stay cached ------
@@ -42,7 +42,7 @@ RUN cp target/*.jar application.jar \
 # =============================================================================
 # JRE, not JDK: no compiler, no Maven, no source code -- smaller image, smaller
 # attack surface.
-FROM eclipse-temurin:21-jre AS runtime
+FROM eclipse-temurin:25-jre AS runtime
 WORKDIR /app
 
 # A system user with no login shell and no home directory. The app has no
