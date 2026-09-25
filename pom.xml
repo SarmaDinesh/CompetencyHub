@@ -174,9 +174,11 @@
 		</dependency>
 		<!-- MockMvc request post-processors: jwt(), user(), csrf(). Lets a @WebMvcTest act as
              an ADMIN or a STUDENT without minting a real token. Version from the Boot BOM. -->
+		<!-- Boot 4: security support for test slices (@WebMvcTest gets the real filter
+             chain) plus spring-security-test's jwt()/user() post-processors. -->
 		<dependency>
-			<groupId>org.springframework.security</groupId>
-			<artifactId>spring-security-test</artifactId>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security-test</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<!-- @DataJpaTest, TestEntityManager, @AutoConfigureTestDatabase.

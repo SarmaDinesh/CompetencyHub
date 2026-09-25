@@ -5,7 +5,7 @@ scrape_configs:
   - job_name: competencyhub
     metrics_path: /actuator/prometheus
     static_configs:
-      # host.docker.internal reaches your host from inside the container, which is where
-      # the app runs during development. In a full compose deployment this becomes the
-      # service name instead.
-      - targets: ["host.docker.internal:8080"]
+      # app:8080                 -> the app running in compose (service name)
+      # host.docker.internal:8080 -> the app running in IntelliJ on your PC
+      # Whichever is not running shows as DOWN on the Targets page; that's expected.
+      - targets: ["app:8080", "host.docker.internal:8080"]

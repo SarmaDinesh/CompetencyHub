@@ -1,3 +1,7 @@
+# Local stack: the app plus everything it needs.
+#   docker compose up -d --build        build the app image and start everything
+#   docker compose up -d postgres kafka only the dependencies (app runs in IntelliJ)
+
 services:
   postgres:
     image: postgres:16
@@ -6,29 +10,75 @@ services:
       POSTGRES_DB: competencyhub
       POSTGRES_USER: chub
       POSTGRES_PASSWORD: chub
-
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    # "Accepting connections", not merely "container started" -- the difference
+    # is a few seconds in which Flyway would fail.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chub -d competencyhub"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   kafka:
     image: apache/kafka:3.7.0
     container_name: competencyhub-kafka
     restart: unless-stopped
     ports:
-      - "9092:9092"
+      - "9092:9092"          # EXTERNAL listener, for the app when it runs on your PC
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      # Two client listeners. Kafka tells every client "reconnect at <advertised
+      # address>", so each audience needs an address that works FROM WHERE IT IS:
+      #   INTERNAL -> kafka:29092     other containers (the app in compose)
+      #   EXTERNAL -> localhost:9092  your PC (IntelliJ, CLI tools)
+      KAFKA_LISTENERS: INTERNAL://:29092,EXTERNAL://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
       # Single-broker dev cluster: replication of 1 is all that's possible.
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  app:
+    build: .                        # uses the Dockerfile from Step 3
+    image: competencyhub:local
+    container_name: competencyhub-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      # Order matters: when two profiles set the same property, the LAST one wins.
+      # "dev" is included only for the seeded logins (admin/mentor/student1, password
+      # password123) -- "docker" comes last so its quiet logging and console-only
+      # output override dev's SQL tracing. Never include dev outside your own machine.
+      SPRING_PROFILES_ACTIVE: dev,docker
+      # Reached by service name, on the INTERNAL listener.
+      KAFKA_BROKERS: kafka:29092
+    healthcheck:
+      # Liveness, not /actuator/health: a Kafka outage must not mark the app unhealthy
+      # (that is the SecurityIT lesson from Step 1).
+      test: ["CMD", "curl", "-fs", "http://localhost:8080/actuator/health/liveness"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 40s
 
   prometheus:
     image: prom/prometheus:latest
