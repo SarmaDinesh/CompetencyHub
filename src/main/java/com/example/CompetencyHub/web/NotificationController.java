@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -31,6 +32,7 @@ public class NotificationController {
             description = "Created asynchronously by the Kafka consumers after enrollment and grading.")
     @ApiResponse(responseCode = "200", description = "Newest first")
     @ApiResponse(responseCode = "400", description = "recipient parameter missing")
+    @PreAuthorize("hasRole('ADMIN') or @access.isEmail(#recipient)")
     @GetMapping
     public List<NotificationResponse> byRecipient(
             @Parameter(description = "Email address the notifications were sent to", example = "student1@example.com")

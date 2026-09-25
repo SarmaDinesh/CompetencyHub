@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -34,6 +35,7 @@ public class AssessmentController {
     @Operation(summary = "List a competency's assessments")
     @ApiResponse(responseCode = "200", description = "Each item carries its own type: OBJECTIVE or PERFORMANCE")
     @ApiResponse(responseCode = "404", description = "No competency with this id")
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/competencies/{competencyId}/assessments")
     public List<AssessmentResponse> listForCompetency(@PathVariable Long competencyId) {
         return assessmentService.findByCompetency(competencyId).stream()
@@ -53,6 +55,7 @@ public class AssessmentController {
     @ApiResponse(responseCode = "201", description = "Created; Location points at /api/assessments/{id}")
     @ApiResponse(responseCode = "400", description = "Missing or unknown type, or invalid fields for that type")
     @ApiResponse(responseCode = "404", description = "No competency with this id")
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/competencies/{competencyId}/assessments")
     public ResponseEntity<AssessmentResponse> create(
             @PathVariable Long competencyId,
@@ -111,6 +114,7 @@ public class AssessmentController {
     @Operation(summary = "Get an assessment")
     @ApiResponse(responseCode = "200", description = "The assessment")
     @ApiResponse(responseCode = "404", description = "No assessment with this id")
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/assessments/{id}")
     public AssessmentResponse findById(@PathVariable Long id) {
         return AssessmentResponse.from(assessmentService.findById(id));
@@ -120,6 +124,7 @@ public class AssessmentController {
     @ApiResponse(responseCode = "204", description = "Deleted")
     @ApiResponse(responseCode = "404", description = "No assessment with this id")
     @ApiResponse(responseCode = "409", description = "Students have submitted work against it")
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/assessments/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         assessmentService.delete(id);

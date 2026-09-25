@@ -8,6 +8,8 @@ import com.example.CompetencyHub.domain.model.Course;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import com.example.CompetencyHub.security.WebSecurityTestConfig;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -15,6 +17,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.*;
+import static com.example.CompetencyHub.security.SecurityTestSupport.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -29,6 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * mapping, and a broken mapper shows up here rather than in production.
  */
 @WebMvcTest(CourseController.class)
+@Import(WebSecurityTestConfig.class)
 class CourseControllerTest {
 
     @Autowired private MockMvc mockMvc;
@@ -66,7 +70,7 @@ class CourseControllerTest {
     void returnsTheCourseWhenItExists() throws Exception {
         when(courseService.findById(1L)).thenReturn(savedCourse(30, 2));
 
-        mockMvc.perform(get("/api/courses/1"))
+        mockMvc.perform(get("/api/courses/1").with(asAdmin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.code").value("CS544"))
@@ -88,7 +92,7 @@ class CourseControllerTest {
     void doesNotLeakEntityInternalsIntoTheResponse() throws Exception {
         when(courseService.findById(1L)).thenReturn(savedCourse(30, 2));
 
-        mockMvc.perform(get("/api/courses/1"))
+        mockMvc.perform(get("/api/courses/1").with(asAdmin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.version").doesNotExist())
                 .andExpect(jsonPath("$.competencies").doesNotExist());
@@ -98,7 +102,7 @@ class CourseControllerTest {
     void returns404WhenCourseDoesNotExist() throws Exception {
         when(courseService.findById(99L)).thenThrow(new NotFoundException("Course 99 not found"));
 
-        mockMvc.perform(get("/api/courses/99"))
+        mockMvc.perform(get("/api/courses/99").with(asAdmin()))
                 .andExpect(status().isNotFound())
                 // Asserting the error CONTRACT, not just the status code. This is the
                 // RFC 9457 ProblemDetail shape from Module 8, and clients parse it -- so
@@ -127,7 +131,7 @@ class CourseControllerTest {
                 eq(30)))
                 .thenReturn(savedCourse(30, 0));
 
-        mockMvc.perform(post("/api/courses")
+        mockMvc.perform(post("/api/courses").with(asAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         /*
                          * Literal JSON, not the slides' asJsonString(someDto) helper.
@@ -152,7 +156,7 @@ class CourseControllerTest {
 
     @Test
     void returns400WithFieldErrorsWhenTitleIsBlank() throws Exception {
-        mockMvc.perform(post("/api/courses")
+        mockMvc.perform(post("/api/courses").with(asAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -177,7 +181,7 @@ class CourseControllerTest {
 
     @Test
     void returns400WhenCapacityIsNegative() throws Exception {
-        mockMvc.perform(post("/api/courses")
+        mockMvc.perform(post("/api/courses").with(asAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -205,7 +209,7 @@ class CourseControllerTest {
         when(courseService.create(anyString(), anyString(), anyString(), anyInt()))
                 .thenThrow(new BusinessRuleException("Course code CS544 already exists"));
 
-        mockMvc.perform(post("/api/courses")
+        mockMvc.perform(post("/api/courses").with(asAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -217,5 +221,38 @@ class CourseControllerTest {
                                 """))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409));
+    }
+
+    // ---- security ------------------------------------------------------------------
+
+    @Test
+    void anonymousRequestsAre401WithAProblemBody() throws Exception {
+        mockMvc.perform(get("/api/courses/1"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentType("application/problem+json"))
+                // The standard challenge header, from BearerTokenAuthenticationEntryPoint.
+                .andExpect(header().string("WWW-Authenticate", containsString("Bearer")));
+        verifyNoInteractions(courseService);
+    }
+
+    @Test
+    void anyLoggedInUserCanReadTheCatalog() throws Exception {
+        when(courseService.findById(1L)).thenReturn(savedCourse(30, 0));
+
+        mockMvc.perform(get("/api/courses/1").with(asStudent(7L)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void aStudentCannotCreateACourse() throws Exception {
+        mockMvc.perform(post("/api/courses").with(asStudent(7L))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "code": "CS544", "title": "Enterprise Architecture", "capacity": 30 }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403));
+        // Denied BEFORE the method body: the service was never reached.
+        verifyNoInteractions(courseService);
     }
 }

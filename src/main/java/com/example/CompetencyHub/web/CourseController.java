@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
@@ -53,6 +54,7 @@ public class CourseController {
     @Operation(summary = "List courses, or search by title",
             description = "Paged with ?page=, ?size= (default 20) and ?sort= (default code). ?search= does a case-insensitive title match.")
     @ApiResponse(responseCode = "200", description = "A page of courses; with ?search=, all matches in one page")
+    @PreAuthorize("isAuthenticated()")
     @GetMapping
     public PageResponse<CourseResponse> list(
             @Parameter(description = "Case-insensitive title fragment; when present, paging is ignored")
@@ -76,6 +78,7 @@ public class CourseController {
     @Operation(summary = "Get a course")
     @ApiResponse(responseCode = "200", description = "The course")
     @ApiResponse(responseCode = "404", description = "No course with this id")
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/{id}")
     public CourseResponse findById(@PathVariable Long id) {
         return CourseResponse.from(courseService.findById(id));
@@ -97,6 +100,7 @@ public class CourseController {
     @ApiResponse(responseCode = "201", description = "Created; Location header points at the new course")
     @ApiResponse(responseCode = "400", description = "Invalid body, e.g. a code not like CS544")
     @ApiResponse(responseCode = "409", description = "A course with this code already exists")
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ResponseEntity<CourseResponse> create(@Valid @RequestBody CreateCourseRequest request,
                                                  UriComponentsBuilder uriBuilder) {
@@ -128,6 +132,7 @@ public class CourseController {
     @ApiResponse(responseCode = "400", description = "Invalid body")
     @ApiResponse(responseCode = "404", description = "No course with this id")
     @ApiResponse(responseCode = "409", description = "Capacity below current enrollment, or modified concurrently")
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
     public CourseResponse update(@PathVariable Long id,
                                  @Valid @RequestBody UpdateCourseRequest request) {
@@ -145,6 +150,7 @@ public class CourseController {
     @ApiResponse(responseCode = "204", description = "Deleted")
     @ApiResponse(responseCode = "404", description = "No course with this id")
     @ApiResponse(responseCode = "409", description = "The course has active enrollments")
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         courseService.delete(id);

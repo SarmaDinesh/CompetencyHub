@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -35,6 +36,7 @@ public class SubmissionController {
     @ApiResponse(responseCode = "400", description = "Wrong fields for the assessment type, score out of range, or over the word limit")
     @ApiResponse(responseCode = "404", description = "No such assessment or student")
     @ApiResponse(responseCode = "409", description = "The student is not actively enrolled in the course")
+    @PreAuthorize("hasRole('STUDENT') and @access.isStudent(#request.studentId())")
     @PostMapping("/assessments/{assessmentId}/submissions")
     public ResponseEntity<SubmissionResponse> submit(@PathVariable Long assessmentId,
                                                      @Valid @RequestBody SubmitRequest request,
@@ -57,6 +59,7 @@ public class SubmissionController {
     @ApiResponse(responseCode = "200", description = "Oldest first. ?status=SUBMITTED gives the grading queue")
     @ApiResponse(responseCode = "400", description = "Unknown status value")
     @ApiResponse(responseCode = "404", description = "No assessment with this id")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MENTOR')")
     @GetMapping("/assessments/{assessmentId}/submissions")
     public List<SubmissionResponse> listForAssessment(@PathVariable Long assessmentId,
                                                       @Parameter(description = "Filter by status; SUBMITTED is the grading queue")
@@ -69,6 +72,7 @@ public class SubmissionController {
     @Operation(summary = "List a student's submissions")
     @ApiResponse(responseCode = "200", description = "Newest first")
     @ApiResponse(responseCode = "404", description = "No student with this id")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MENTOR') or @access.isStudent(#studentId)")
     @GetMapping("/students/{studentId}/submissions")
     public List<SubmissionResponse> listForStudent(@PathVariable Long studentId) {
         return submissionService.findByStudent(studentId).stream()
@@ -79,6 +83,7 @@ public class SubmissionController {
     @Operation(summary = "Get a submission")
     @ApiResponse(responseCode = "200", description = "The submission")
     @ApiResponse(responseCode = "404", description = "No submission with this id")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MENTOR') or @access.ownsSubmission(#id)")
     @GetMapping("/submissions/{id}")
     public SubmissionResponse findById(@PathVariable Long id) {
         return SubmissionResponse.from(submissionService.findById(id));
@@ -100,6 +105,7 @@ public class SubmissionController {
     @ApiResponse(responseCode = "400", description = "Invalid body or score outside the assessment's range")
     @ApiResponse(responseCode = "404", description = "No such submission or mentor")
     @ApiResponse(responseCode = "409", description = "Already graded, or graded concurrently by another mentor")
+    @PreAuthorize("hasRole('MENTOR') and @access.isMentor(#request.mentorId())")
     @PostMapping("/submissions/{id}/grade")
     public SubmissionResponse grade(@PathVariable Long id, @Valid @RequestBody GradeRequest request) {
         return SubmissionResponse.from(submissionService.grade(

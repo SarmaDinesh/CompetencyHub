@@ -2,7 +2,7 @@
   "info": {
     "name": "CompetencyHub",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Run the folders in order (Collection Runner works). Each create request saves the new id into a collection variable, so later requests use it automatically.\n\nFolder 3 creates real submissions, so folder 4's 409 checks work without any SQL. (Before submissions had an endpoint, this was the manual way:)\n\ndocker exec competencyhub-db psql -U chub -d competencyhub -c \"INSERT INTO submission (student_id, assessment_id, score, submitted_at) VALUES ((SELECT min(id) FROM student), <objectiveId>, 90, now())\""
+    "description": "Run folder 0 first: it logs in as the seeded admin (dev profile, password123) and registers a fresh student. Requests without their own auth use {{adminToken}}; student and mentor steps carry their own tokens.\n\nRun the folders in order (Collection Runner works). Each create request saves the new id into a collection variable, so later requests use it automatically.\n\nFolder 3 creates real submissions, so folder 4's 409 checks work without any SQL. (Before submissions had an endpoint, this was the manual way:)\n\ndocker exec competencyhub-db psql -U chub -d competencyhub -c \"INSERT INTO submission (student_id, assessment_id, score, submitted_at) VALUES ((SELECT min(id) FROM student), <objectiveId>, 90, now())\""
   },
   "variable": [
     {
@@ -44,9 +44,308 @@
     {
       "key": "essaySubmissionId",
       "value": ""
+    },
+    {
+      "key": "adminToken",
+      "value": ""
+    },
+    {
+      "key": "studentToken",
+      "value": ""
+    },
+    {
+      "key": "mentorToken",
+      "value": ""
+    },
+    {
+      "key": "studentEmail",
+      "value": ""
+    },
+    {
+      "key": "mentorEmail",
+      "value": ""
     }
   ],
   "item": [
+    {
+      "name": "0. Auth",
+      "item": [
+        {
+          "name": "Log in as admin (seeded)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"password123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Dev seed account. Every request without its own auth uses {{adminToken}} (collection-level Bearer)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set(\"adminToken\", pm.response.json().accessToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "No token -> 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/courses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "courses"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 401\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register a student",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Ada\",\n  \"lastName\": \"Lovelace\",\n  \"email\": \"{{studentEmail}}\",\n  \"password\": \"correct-horse\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"studentEmail\", `student${Date.now()}@example.com`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "const b = pm.response.json();",
+                  "pm.collectionVariables.set(\"studentToken\", b.accessToken);",
+                  "pm.collectionVariables.set(\"studentId\", b.studentId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Who am I (student)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Student creates a course -> 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/courses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "courses"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"CS998\",\n  \"title\": \"Nope\",\n  \"capacity\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Wrong password -> 401",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"wrong-password\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 401\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
     {
       "name": "1. Happy path",
       "item": [
@@ -861,14 +1160,13 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"firstName\": \"Ada\",\n  \"lastName\": \"Byron\",\n  \"email\": \"{{$timestamp}}@mentor.example.com\",\n  \"specialization\": \"Enterprise Java\"\n}",
+              "raw": "{\n  \"firstName\": \"Grace\",\n  \"lastName\": \"Hopper\",\n  \"email\": \"{{mentorEmail}}\",\n  \"specialization\": \"Enterprise Java\",\n  \"password\": \"mentor-pass-123\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
-            },
-            "description": "Email uses {{$timestamp}} so the request can be re-run without a 409."
+            }
           },
           "event": [
             {
@@ -878,6 +1176,64 @@
                 "exec": [
                   "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
                   "pm.collectionVariables.set(\"mentorId\", pm.response.json().id);"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"mentorEmail\", `mentor${Date.now()}@example.com`);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Log in as the new mentor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{mentorEmail}}\",\n  \"password\": \"mentor-pass-123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.collectionVariables.set(\"mentorToken\", b.accessToken);",
+                  "pm.collectionVariables.set(\"mentorId\", b.mentorId);"
                 ]
               }
             }
@@ -942,7 +1298,16 @@
                 }
               }
             },
-            "description": "studentId defaults to 1 (a seeded student). Change it in Variables if yours differs."
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           },
           "event": [
             {
@@ -986,6 +1351,16 @@
                   "language": "json"
                 }
               }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
             }
           },
           "event": [
@@ -1030,6 +1405,16 @@
                   "language": "json"
                 }
               }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
             }
           },
           "event": [
@@ -1075,6 +1460,16 @@
                   "language": "json"
                 }
               }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
             }
           },
           "event": [
@@ -1121,6 +1516,16 @@
                   "language": "json"
                 }
               }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
             }
           },
           "event": [
@@ -1165,6 +1570,16 @@
                   "language": "json"
                 }
               }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
             }
           },
           "event": [
@@ -1199,6 +1614,16 @@
                 {
                   "key": "status",
                   "value": "SUBMITTED"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{mentorToken}}",
+                  "type": "string"
                 }
               ]
             }
@@ -1237,6 +1662,16 @@
                   "value": "PENDING"
                 }
               ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{mentorToken}}",
+                  "type": "string"
+                }
+              ]
             }
           },
           "event": [
@@ -1246,6 +1681,60 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"status is 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Student grades own essay -> 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/submissions/{{essaySubmissionId}}/grade",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "submissions",
+                "{{essaySubmissionId}}",
+                "grade"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mentorId\": {{mentorId}},\n  \"score\": 100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
                 ]
               }
             }
@@ -1281,6 +1770,16 @@
                   "language": "json"
                 }
               }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{mentorToken}}",
+                  "type": "string"
+                }
+              ]
             }
           },
           "event": [
@@ -1326,6 +1825,16 @@
                   "language": "json"
                 }
               }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{mentorToken}}",
+                  "type": "string"
+                }
+              ]
             }
           },
           "event": [
@@ -1354,6 +1863,16 @@
                 "api",
                 "submissions",
                 "{{essaySubmissionId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
               ]
             }
           },
@@ -1385,6 +1904,16 @@
                 "{{studentId}}",
                 "submissions"
               ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
             }
           },
           "event": [
@@ -1405,7 +1934,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/notifications?recipient=student1@example.com",
+              "raw": "{{baseUrl}}/api/notifications?recipient={{studentEmail}}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1416,11 +1945,21 @@
               "query": [
                 {
                   "key": "recipient",
-                  "value": "student1@example.com"
+                  "value": "{{studentEmail}}"
                 }
               ]
             },
-            "description": "Created by the Kafka consumer a moment after each grade. Adjust recipient to your student's email."
+            "description": "Created by the Kafka consumer a moment after each grade.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           },
           "event": [
             {
@@ -1586,5 +2125,15 @@
         }
       ]
     }
-  ]
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{adminToken}}",
+        "type": "string"
+      }
+    ]
+  }
 }

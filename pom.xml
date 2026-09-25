@@ -103,6 +103,16 @@
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
 
+		<!-- Security. The resource-server starter brings spring-boot-starter-security with it,
+             plus spring-security-oauth2-jose: the Nimbus library that signs and verifies JWTs.
+             Boot 4 renamed it from spring-boot-starter-oauth2-resource-server; the old name
+             still resolves but is deprecated. No jjwt: Spring Security's own JwtEncoder /
+             JwtDecoder replace the hand-rolled token utilities older tutorials use. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security-oauth2-resource-server</artifactId>
+		</dependency>
+
 		<!-- OpenAPI 3 spec generated from the code, plus Swagger UI.
              springdoc 3.x is the line for Spring Boot 4 (2.x was Boot 3, 1.x was Boot 2).
              Not managed by the Boot BOM, hence the explicit version. The 3.1 line was built
@@ -160,6 +170,13 @@
 			<groupId>io.rest-assured</groupId>
 			<artifactId>rest-assured</artifactId>
 			<version>${rest-assured.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<!-- MockMvc request post-processors: jwt(), user(), csrf(). Lets a @WebMvcTest act as
+             an ADMIN or a STUDENT without minting a real token. Version from the Boot BOM. -->
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-test</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<!-- @DataJpaTest, TestEntityManager, @AutoConfigureTestDatabase.

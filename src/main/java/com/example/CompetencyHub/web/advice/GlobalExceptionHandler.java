@@ -10,11 +10,14 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.net.URI;
 import java.time.Instant;
@@ -155,6 +158,41 @@ public class GlobalExceptionHandler {
         log.warn("Constraint violation: {}", e.getMostSpecificCause().getMessage());
         return problem(HttpStatus.CONFLICT,
                 "The request conflicts with existing data. Please retry.", "data-conflict");
+    }
+
+    /**
+     * 404 for a URL no controller maps, e.g. a typo like /api/course/1.
+     *
+     * <p>Since Spring 6.1 an unmapped path raises NoResourceFoundException, which the
+     * catch-all below used to turn into a 500 -- a client typo reported as a server fault.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ProblemDetail handleNoResource(NoResourceFoundException e) {
+        return problem(HttpStatus.NOT_FOUND, "No endpoint " + e.getResourcePath(), "not-found");
+    }
+
+    /**
+     * 403 from @PreAuthorize.
+     *
+     * <p>Method security runs INSIDE the controller call, so its AccessDeniedException
+     * (AuthorizationDeniedException, in Spring Security 6+) arrives here, not at the filter
+     * chain's handler. Without this method it would fall into handleUnexpected() below and a
+     * student reading someone else's submission would get "500 unexpected error" -- wrong
+     * status, and a false alarm in the logs.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ProblemDetail handleAccessDenied(AccessDeniedException e) {
+        return problem(HttpStatus.FORBIDDEN,
+                "You do not have permission to perform this action", "forbidden");
+    }
+
+    /**
+     * 401 from POST /api/auth/login: wrong email or wrong password, deliberately the same
+     * message for both. Also disabled accounts.
+     */
+    @ExceptionHandler(AuthenticationException.class)
+    public ProblemDetail handleAuthentication(AuthenticationException e) {
+        return problem(HttpStatus.UNAUTHORIZED, "Invalid email or password", "unauthorized");
     }
 
     /**

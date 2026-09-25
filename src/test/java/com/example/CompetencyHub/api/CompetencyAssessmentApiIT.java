@@ -1,7 +1,9 @@
 package com.example.CompetencyHub.api;
 
 import com.example.CompetencyHub.TestcontainersConfig;
+import com.example.CompetencyHub.repository.AppUserRepository;
 import io.restassured.RestAssured;
+import io.restassured.builder.RequestSpecBuilder;
 import io.restassured.http.ContentType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,6 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 
 import static io.restassured.RestAssured.given;
@@ -32,11 +35,20 @@ class CompetencyAssessmentApiIT {
 
     @LocalServerPort private int port;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private AppUserRepository appUserRepository;
+    @Autowired private PasswordEncoder passwordEncoder;
 
     @BeforeEach
     void setUp() {
         RestAssured.port = port;
         RestAssured.baseURI = "http://localhost";
+
+        // Every request in this class acts as an admin. requestSpecification is STATIC: it
+        // applies to every Rest Assured call in the JVM until reset -- hence the reset() in
+        // @AfterEach, or the next test class would silently inherit this admin token.
+        RestAssured.requestSpecification = new RequestSpecBuilder()
+                .addHeader("Authorization", "Bearer " + ApiAuth.adminToken(appUserRepository, passwordEncoder))
+                .build();
     }
 
     @AfterEach
@@ -45,9 +57,10 @@ class CompetencyAssessmentApiIT {
                 TRUNCATE TABLE
                     progress, enrollment, enrollment_attempt, notification,
                     submission, objective_assessment, performance_assessment,
-                    assessment, competency, course, student, mentor, job_run
+                    assessment, competency, course, student, mentor, app_user, job_run
                 RESTART IDENTITY CASCADE
                 """);
+        RestAssured.reset();
     }
 
     @Test

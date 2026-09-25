@@ -7,6 +7,7 @@ import com.example.CompetencyHub.repository.JobRunRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -37,6 +38,7 @@ public class AdminJobController {
      */
     @Operation(summary = "Run the progress recalculation job now")
     @ApiResponse(responseCode = "202", description = "Started in the background; poll the runs endpoint for the outcome")
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/progress-recalculation")
     public ResponseEntity<Void> triggerProgressRecalculation() {
         jobLauncher.launchProgressRecalculation();
@@ -46,6 +48,7 @@ public class AdminJobController {
     /** How you find out what happened, since the trigger above tells you nothing. */
     @Operation(summary = "Recent runs of the progress recalculation job")
     @ApiResponse(responseCode = "200", description = "Up to 20 runs, newest first")
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/progress-recalculation/runs")
     public List<JobRunResponse> recentRuns() {
         return jobRunRepository
