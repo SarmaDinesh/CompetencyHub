@@ -1,0 +1,43 @@
+version: 2
+updates:
+  # Java libraries in pom.xml
+  - package-ecosystem: maven
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      spring:
+        patterns: ["org.springframework*"]
+      testing:
+        patterns: ["org.testcontainers*", "io.rest-assured*", "org.mockito*"]
+
+  # The actions used in .github/workflows/*.yml
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci(deps)"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # FROM lines in the Dockerfile
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "build(deps)"
+
+  # image: lines in docker-compose.yml (postgres, kafka, prometheus, grafana)
+  - package-ecosystem: docker-compose
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "build(deps)"
