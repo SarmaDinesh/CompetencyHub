@@ -53,3 +53,6 @@ desktop.ini
 HELP.md
 *.bak
 *.tmp
+
+### The ! means "except this file".
+!.env.example
