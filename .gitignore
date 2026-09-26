@@ -39,6 +39,8 @@ logs/
 ### Environment & secrets ###
 .env
 .env.local
+secrets/
+*.pem
 application-local.properties
 application-secret.properties
 
