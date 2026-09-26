@@ -39,6 +39,8 @@ logs/
 ### Environment & secrets ###
 .env
 .env.local
+secrets/
+*.pem
 application-local.properties
 application-secret.properties
 
@@ -51,3 +53,6 @@ desktop.ini
 HELP.md
 *.bak
 *.tmp
+
+### The ! means "except this file".
+!.env.example

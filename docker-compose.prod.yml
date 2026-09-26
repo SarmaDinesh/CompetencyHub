@@ -1,0 +1,98 @@
+# Production stack for a single EC2 host.  Run with:
+#   docker compose -f docker-compose.prod.yml --env-file .env up -d
+# Secrets come from .env on the server (never committed). ${VAR:?msg} = required:
+# compose refuses to start and prints msg if it is missing.
+
+x-logging: &default-logging          # YAML anchor: define once, reuse below
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: chub-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: competencyhub
+      POSTGRES_USER: ${DB_USERNAME:?set DB_USERNAME in .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data     # survives container re-creation and deploys
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d competencyhub"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    logging: *default-logging
+    # No "ports:" -- reachable only by other containers on this network.
+
+  kafka:
+    image: apache/kafka:4.3.1
+    container_name: chub-kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: INTERNAL://:29092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx256m"   # the default 1 GB heap would not fit
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:29092 > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    logging: *default-logging
+
+  app:
+    image: ghcr.io/sarmadinesh/competencyhub:${APP_TAG:-latest}
+    container_name: chub-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod            # hard-coded on purpose -- never from .env
+      KAFKA_BROKERS: kafka:29092
+      DB_USERNAME: ${DB_USERNAME:?set DB_USERNAME in .env}
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}            # optional after the first start
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    volumes:
+      - ./secrets/jwt-private.pem:/run/secrets/jwt-private.pem:ro
+      - ./secrets/jwt-public.pem:/run/secrets/jwt-public.pem:ro
+    ports:
+      - "127.0.0.1:8080:8080"                 # loopback only; Caddy (Step 5) faces the internet
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8080/actuator/health/liveness || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+    logging: *default-logging
+
+volumes:
+  pgdata:
